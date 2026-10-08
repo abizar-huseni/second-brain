@@ -3,6 +3,7 @@ import { bankRows } from "@/lib/bankRows";
 import { makeBrief, slotNow } from "@/lib/coach";
 import { makeFuel } from "@/lib/fuel";
 import { fmtClock, fmtDur, sleepReport } from "@/lib/sleep";
+import { suggestDeviceActions } from "@/lib/deviceSuggest";
 import { addDays, nextDue, weekStart } from "@/lib/ldates";
 import { makePlan, type PlanKind } from "@/lib/plan";
 import { MILESTONES } from "@/lib/quit";
@@ -116,22 +117,30 @@ export async function POST(req: Request) {
   // A "night" runs noon to noon, so a 00:15 wind-down still counts as tonight.
   const night = new Date(Date.now() - 12 * HOUR).toLocaleDateString("en-CA", { timeZone: "Europe/London" });
   const nudgedNight = (status?.find((x) => x.source === "sleep-nudge")?.info as { night?: string } | null)?.night;
-  if ((hour >= 19 || hour < 3) && nudgedNight !== night) {
-    const { data: rows } = await db
-      .from("health_samples")
-      .select("type, start_time, end_time, value")
-      .eq("user_id", userId)
-      .in("type", ["sleep", "awake", "sleep_manual"])
-      .gte("end_time", new Date(Date.now() - 21 * 24 * HOUR).toISOString());
+  const nowMin = hour * 60 + new Date().getMinutes();
+  // windDown can be after midnight (e.g. 00:15), so compare on a clock that starts at noon.
+  const fromNoon = (m: number) => (m - 720 + 1440) % 1440;
+  let sleepR: ReturnType<typeof sleepReport> | null = null;
+  if (hour >= 19 || hour < 5) {
+    const [{ data: rows }, { data: prof }] = await Promise.all([
+      db
+        .from("health_samples")
+        .select("type, start_time, end_time, value")
+        .eq("user_id", userId)
+        .in("type", ["sleep", "awake", "sleep_manual"])
+        .gte("end_time", new Date(Date.now() - 21 * 24 * HOUR).toISOString())
+        .order("end_time"),
+      db.from("profile").select("sleep_need_min").eq("user_id", userId).maybeSingle(),
+    ]);
     const list = (rows ?? []) as { type: string; start_time: string; end_time: string; value: number }[];
-    const r = sleepReport(
+    sleepR = sleepReport(
       list.filter((x) => x.type !== "awake").map((x) => ({ start: x.start_time, end: x.end_time, asleep_s: Number(x.value), manual: x.type === "sleep_manual" })),
       list.filter((x) => x.type === "awake").map((x) => ({ start: x.start_time, end: x.end_time })),
-      { today: day },
+      { today: day, needMin: (prof as { sleep_need_min?: number } | null)?.sleep_need_min },
     );
-    const nowMin = hour * 60 + new Date().getMinutes();
-    // windDown can be after midnight (e.g. 00:15), so compare on a clock that starts at noon.
-    const fromNoon = (m: number) => (m - 720 + 1440) % 1440;
+  }
+  const r = sleepR;
+  if (r && (hour >= 19 || hour < 3) && nudgedNight !== night) {
     if (r.windDown !== null && r.bedTonight !== null && fromNoon(nowMin) >= fromNoon(r.windDown)) {
       await sendPush(db, userId, {
         title: "🌙 Wind down now",
@@ -140,6 +149,13 @@ export async function POST(req: Request) {
       });
       await setStatus(db, userId, "sleep-nudge", { ok: true, info: { night } });
     }
+  }
+
+  // Laptop and phone: suggest safe fixes (screen timeout, space, bedtime sleep, dim at wind-down) to approve in the app.
+  try {
+    await suggestDeviceActions(db, userId, { nowMin, day, night, sleep: sleepR });
+  } catch (e) {
+    console.error("device suggestions:", (e as Error).message);
   }
 
   // 9:30pm nudge if the night check-in hasn't happened.
