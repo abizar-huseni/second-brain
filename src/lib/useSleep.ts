@@ -76,7 +76,7 @@ export function useSleep() {
       { onConflict: "user_id,type,start_time,end_time" },
     );
     if (e) {
-      setError(e.message.includes("policy") ? "Your database needs the sleep update (supabase/008_sleep.sql). It applies itself on the next deploy, or paste it in Supabase once." : e.message);
+      setError(e.message.includes("policy") ? "Your database is still getting the sleep update. It finishes on the next deploy, then try again." : e.message);
       return false;
     }
     // Keep the daily total in step if the watch has nothing for that morning.

@@ -83,7 +83,7 @@ Body → Sleep works it out from the Galaxy Watch (live sync or the Samsung expo
 - **Tonight's bedtime**, with up to 45 minutes extra to pay back debt, and a "wind down" push an hour before
 - Fix a night by hand if the watch missed it
 
-Run `supabase/008_sleep.sql` (it applies itself on deploy when the database URL is set).
+The database part is `supabase/008_sleep.sql`, applied on deploy like every other migration.
 
 ## Mindset fuel
 
