@@ -5,6 +5,7 @@ import { makeFuel } from "@/lib/fuel";
 import { fmtClock, fmtDur, sleepReport } from "@/lib/sleep";
 import { suggestDeviceActions } from "@/lib/deviceSuggest";
 import { situationChecks } from "@/lib/situationChecks";
+import { lowMoodCheck } from "@/lib/body";
 import { addDays, nextDue, weekStart } from "@/lib/ldates";
 import { makePlan, type PlanKind } from "@/lib/plan";
 import { MILESTONES } from "@/lib/quit";
@@ -173,6 +174,9 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error("device suggestions:", (e as Error).message);
   }
+
+  // A gentle note (never a push) when mood stays low for several check-ins.
+  await lowMoodCheck(db, userId, day).catch((e) => console.error("low mood:", (e as Error).message));
 
   // 9:30pm nudge if the night check-in hasn't happened.
   if (hour >= 21 && lastDay("nudge") !== day) {
