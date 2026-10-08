@@ -6,6 +6,8 @@ import { daysAgo } from "@/lib/dates";
 import { buildHealthDays, buildSleepSamples, type HealthDay } from "@/lib/samsung";
 import Bars from "@/components/Bars";
 import SleepPanel from "@/components/SleepPanel";
+import BodyPanel, { Line } from "@/components/BodyPanel";
+import { bodyFromSamsung, workoutsFromSamsung } from "@/lib/body";
 import Link from "next/link";
 
 const hm = (mins: number) => `${Math.floor(mins / 60)}h ${String(Math.round(mins % 60)).padStart(2, "0")}m`;
@@ -19,6 +21,7 @@ export default function HealthPage() {
   const [status, setStatus] = useState("");
   const [range, setRange] = useState(30);
   const [sleepKey, setSleepKey] = useState(0);
+  const [bodyKey, setBodyKey] = useState(0);
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("health_days").select("*").gte("day", daysAgo(365)).order("day");
@@ -66,8 +69,24 @@ export default function HealthPage() {
       }
     }
     const nights = sleep.filter((x) => x.type === "sleep").length;
-    setStatus(`Imported ${rows.length} days (${rows[0].day} to ${rows[rows.length - 1].day})${nights && !sleepNote ? ` and ${nights} nights of sleep` : ""}.${sleepNote}`);
+    // Weigh-ins and body composition from the watch.
+    const body = bodyFromSamsung(files);
+    let weighIns = 0;
+    for (let i = 0; i < body.length; i += 500) {
+      const { error } = await supabase.from("body_log").upsert(body.slice(i, i + 500), { onConflict: "user_id,source,measured_at" });
+      if (error) break;
+      weighIns += body.slice(i, i + 500).length;
+    }
+    const workouts = workoutsFromSamsung(files);
+    for (let i = 0; i < workouts.length; i += 500) {
+      const { error } = await supabase.from("training_log").upsert(workouts.slice(i, i + 500), { onConflict: "user_id,source,started_at", ignoreDuplicates: true });
+      if (error) break;
+    }
+    setStatus(
+      `Imported ${rows.length} days (${rows[0].day} to ${rows[rows.length - 1].day})${nights && !sleepNote ? `, ${nights} nights of sleep` : ""}${weighIns ? `, ${weighIns} body measurements` : ""}.${sleepNote}`,
+    );
     setSleepKey((k) => k + 1);
+    setBodyKey((k) => k + 1);
     load();
   }
 
@@ -93,6 +112,8 @@ export default function HealthPage() {
         <Stat icon="❤️" label="Lowest HR (7d)" value={hr7 === null ? "–" : `${Math.round(hr7)} bpm`} />
       </div>
 
+      <BodyPanel key={bodyKey} />
+
       <div className="flex gap-1 rounded-2xl bg-zinc-500/10 p-1">
         {[7, 30, 90].map((r) => (
           <button key={r} onClick={() => setRange(r)} className={`flex-1 rounded-xl py-2 text-sm transition ${range === r ? "bg-[var(--surface)] font-semibold shadow-sm" : "text-zinc-500"}`}>
@@ -113,6 +134,11 @@ export default function HealthPage() {
       <Chart title="Stress" hint="Lower is better">
         <Bars data={series("stress_avg")} color="bg-rose-500" />
       </Chart>
+      {series("hr_min").some((p) => p.value !== null) && (
+        <Chart title="Resting heart rate" hint="Lower over time usually means fitter">
+          <Line values={series("hr_min").map((p) => p.value)} unit="bpm" from={`${range} days ago`} />
+        </Chart>
+      )}
 
       <details className="card group" open={!latest}>
         <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">

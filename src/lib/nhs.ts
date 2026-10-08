@@ -1,4 +1,4 @@
-// Trusted UK guidance the assistant can quote and link. Every line was checked on nhs.uk / gov.uk.
+// Trusted UK guidance the assistant can quote and link. Every line was checked on nhs.uk / gov.uk / samaritans.org.
 // The assistant cites these by key, e.g. "NHS says adults need 7 to 9 hours of sleep [nhs:sleep-hours]".
 export type Guidance = { key: string; topic: string; fact: string; source: string; url: string };
 
@@ -16,6 +16,8 @@ export const GUIDANCE: Guidance[] = [
   { key: "sugar", topic: "food", fact: "Added sugar: no more than about 30g a day for adults (5% of daily energy).", source: "NHS: cut down on sugar", url: "https://www.nhs.uk/live-well/eat-well/how-to-cut-down-on-sugar-in-your-diet/" },
   { key: "water", topic: "food", fact: "Aim for 6 to 8 cups or glasses of fluid a day, more if active.", source: "NHS: water and drinks", url: "https://www.nhs.uk/live-well/eat-well/food-guidelines-and-food-labels/water-drinks-nutrition/" },
   { key: "stress", topic: "mind", fact: "For stress: list 3 things you are thankful for each day, stay active to burn off nervous energy, and break big jobs into small steps.", source: "NHS Every Mind Matters", url: "https://www.nhs.uk/every-mind-matters/mental-health-issues/stress/" },
+  { key: "low-mood", topic: "mind", fact: "A low mood should lift after a few days; if it lasts longer than about 2 weeks it may be a sign of depression. Small steps help: do a little of what matters to you each day, talk to someone, sleep better, be a bit more active. A free Mind Plan gives personal tips.", source: "NHS Every Mind Matters: low mood", url: "https://www.nhs.uk/every-mind-matters/mental-health-issues/low-mood/" },
+  { key: "samaritans", topic: "mind", fact: "Samaritans: call 116 123, free from any phone, open 24 hours a day, and it won't show on your phone bill.", source: "Samaritans", url: "https://www.samaritans.org/how-we-can-help/contact-samaritan/" },
   { key: "graduate-visa", topic: "visa", fact: "Apply for the Graduate visa from inside the UK, before your Student visa expires and after your university tells the Home Office you have completed. Apply on or before 31 December 2026 for 2 years (18 months from 1 January 2027). Fee £937 plus the health surcharge, usually £1,035 a year. Decisions usually take up to 8 weeks.", source: "GOV.UK Graduate visa", url: "https://www.gov.uk/graduate-visa" },
   { key: "student-work", topic: "visa", fact: "On a degree-level Student visa you can work up to 20 hours a week in term time and full time outside term time. No self-employment, and no permanent full-time job until 3 months before your course ends.", source: "GOV.UK Immigration Rules: Appendix Student", url: "https://www.gov.uk/guidance/immigration-rules/immigration-rules-appendix-student" },
 ];

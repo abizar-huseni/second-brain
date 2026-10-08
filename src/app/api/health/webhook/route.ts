@@ -1,5 +1,6 @@
 import { DAY_TYPES, daysFromSamples, samplesFromPayload, TZ, type Sample } from "@/lib/liveHealth";
 import { fromSyncToken, setStatus } from "@/lib/serviceDb";
+import { saveBodyFromPayload, saveWorkoutsFromPayload } from "@/lib/body";
 
 // Receives pushes from the HC Webhook Android app.
 // Header: x-sync-token: <the watch key from the Me page>
@@ -16,8 +17,21 @@ export async function POST(req: Request) {
     return Response.json({ error: "Body must be JSON" }, { status: 400 });
   }
 
+  // Weigh-ins and body composition from the watch go to the Body page's physique card.
+  let body = 0;
+  try {
+    body = await saveBodyFromPayload(db, user_id, payload);
+  } catch (e) {
+    console.error("body composition:", (e as Error).message);
+  }
+  // Workouts keep their type (run, strength, football...) in the training log.
+  await saveWorkoutsFromPayload(db, user_id, payload).catch((e) => console.error("workouts:", (e as Error).message));
+
   const samples = samplesFromPayload(payload);
-  if (!samples.length) return Response.json({ ok: true, samples: 0 });
+  if (!samples.length) {
+    if (body) await setStatus(db, user_id, "watch", { ok: true, info: { samples: 0, body } });
+    return Response.json({ ok: true, samples: 0, body });
+  }
   if (samples.length > 20000) return Response.json({ error: "Too many samples in one push (max 20000)" }, { status: 413 });
 
   const rows = samples.map((s) => ({ ...s, user_id }));
@@ -60,6 +74,6 @@ export async function POST(req: Request) {
     const { error: e } = await db.from("health_days").upsert({ ...p, user_id, updated_at: new Date().toISOString() }, { onConflict: "user_id,day" });
     if (e) return Response.json({ error: e.message }, { status: 500 });
   }
-  await setStatus(db, user_id, "watch", { ok: true, info: { samples: samples.length } });
-  return Response.json({ ok: true, samples: samples.length, days: patches.map((p) => p.day) });
+  await setStatus(db, user_id, "watch", { ok: true, info: { samples: samples.length, body } });
+  return Response.json({ ok: true, samples: samples.length, body, days: patches.map((p) => p.day) });
 }

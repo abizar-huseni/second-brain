@@ -10,6 +10,7 @@ import { countable } from "./statements";
 import { goalProgress } from "./goals";
 import { SITUATION_COLS, situationLines, type Situation } from "./situation";
 import { missingSource, ownNote } from "./notes";
+import { bodyMindContext } from "./body";
 
 const TZ = "Europe/London";
 const dayOf = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: TZ });
@@ -220,6 +221,7 @@ export async function buildContext(db: SupabaseClient, userId?: string): Promise
   );
   out.push("\n## Sleep (debt, body clock, wake-ups)");
   out.push(sleepSummary(sleep));
+  out.push(await bodyMindContext(db, userId));
 
   out.push("\n## Money this month");
   // Money that arrived two ways (CSV and bank sync, payslip and bank) counts once.
