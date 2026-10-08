@@ -20,4 +20,5 @@ create table if not exists health_days (
 );
 
 alter table health_days enable row level security;
+drop policy if exists "own health days" on health_days;
 create policy "own health days" on health_days for all using (user_id = auth.uid()) with check (user_id = auth.uid());

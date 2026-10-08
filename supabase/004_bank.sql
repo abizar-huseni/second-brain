@@ -21,4 +21,5 @@ create table if not exists bank_connections (
 );
 
 alter table bank_connections enable row level security;
+drop policy if exists "own bank connections" on bank_connections;
 create policy "own bank connections" on bank_connections for all using (user_id = auth.uid()) with check (user_id = auth.uid());

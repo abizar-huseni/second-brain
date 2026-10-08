@@ -54,7 +54,11 @@ alter table transactions enable row level security;
 alter table payslips     enable row level security;
 alter table debts        enable row level security;
 
-create policy "own notes"        on notes        for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "own notes" on notes;
+create policy "own notes" on notes        for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "own transactions" on transactions;
 create policy "own transactions" on transactions for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "own payslips"     on payslips     for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "own debts"        on debts        for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "own payslips" on payslips;
+create policy "own payslips" on payslips     for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "own debts" on debts;
+create policy "own debts" on debts        for all using (user_id = auth.uid()) with check (user_id = auth.uid());

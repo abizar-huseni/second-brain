@@ -53,7 +53,11 @@ alter table habits     enable row level security;
 alter table habit_logs enable row level security;
 alter table checkins   enable row level security;
 
-create policy "own goals"      on goals      for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "own habits"     on habits     for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "own goals" on goals;
+create policy "own goals" on goals      for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "own habits" on habits;
+create policy "own habits" on habits     for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "own habit logs" on habit_logs;
 create policy "own habit logs" on habit_logs for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "own checkins"   on checkins   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "own checkins" on checkins;
+create policy "own checkins" on checkins   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
