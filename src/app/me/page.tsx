@@ -7,6 +7,7 @@ import DevicesSetup from "@/components/DevicesSetup";
 import LinkDevice from "@/components/LinkDevice";
 import NotifyButton from "@/components/NotifyButton";
 import AIStatus from "@/components/AIStatus";
+import RulesCard from "@/components/RulesCard";
 import { DEFAULT_NAME } from "@/lib/useAssistant";
 
 const PROMPT = `Situation: visa type, end date, how many hours you're allowed to work, key deadlines
@@ -86,6 +87,8 @@ export default function MePage() {
         </button>
         {saved && <p className="celebrate text-center text-sm text-emerald-600">{saved}</p>}
       </div>
+
+      <RulesCard />
 
       <AIStatus />
 

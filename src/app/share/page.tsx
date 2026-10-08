@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { extractTags } from "@/lib/notes";
+import { extractTags, missingSource } from "@/lib/notes";
 import { callApi } from "@/lib/api";
 
 // Android "Share → Second Brain" lands here. Nothing is saved until you tap Save, so a link alone can't plant a thought.
@@ -25,11 +25,9 @@ export default function SharePage() {
     if (busy.current) return;
     busy.current = true;
     setState("saving");
-    const { data, error } = await supabase
-      .from("notes")
-      .insert({ body: body.trim(), tags: [...new Set(["shared", ...extractTags(body)])] })
-      .select("id")
-      .single();
+    const row = { body: body.trim(), tags: [...new Set(["shared", ...extractTags(body)])] };
+    let { data, error } = await supabase.from("notes").insert({ ...row, source: "shared" }).select("id").single();
+    if (missingSource(error)) ({ data, error } = await supabase.from("notes").insert(row).select("id").single());
     if (error || !data) {
       busy.current = false;
       return setState("error");
