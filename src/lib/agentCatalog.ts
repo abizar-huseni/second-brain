@@ -124,7 +124,7 @@ export const CATALOG: Record<string, CatalogItem> = {
   },
   speak: { label: "Say out loud", icon: "🗣️", on: ["windows", "android"], risk: "low", params: { text: { type: "string" } }, says: (p) => `Say out loud: "${p.text}"` },
   clean_temp: { label: "Clean temp files", icon: "🧹", on: ["windows"], risk: "low", params: {}, says: () => "Delete temporary files older than 3 days and tell you how much space came back." },
-  empty_recycle_bin: { label: "Empty recycle bin", icon: "🗑️", on: ["windows"], risk: "medium", params: {}, says: () => "Empty the recycle bin for good." },
+  empty_recycle_bin: { label: "Empty recycle bin", icon: "🗑️", on: ["windows"], risk: "high", params: {}, says: () => "Empty the recycle bin for good." },
   status: { label: "Status check", icon: "🩺", on: ALL, risk: "low", params: {}, says: () => "Report battery, storage, memory and what's using the most of it." },
   find_files: {
     label: "Find files",
@@ -138,19 +138,19 @@ export const CATALOG: Record<string, CatalogItem> = {
     label: "Read a file",
     icon: "📄",
     on: ALL,
-    risk: "medium",
+    risk: "high",
     params: { path: { type: "string" } },
     says: (p) => `Send the text of ${p.path} (first 20 KB) to your dashboard.`,
   },
   torch: { label: "Torch", icon: "🔦", on: ["android"], risk: "low", params: { on: { type: "boolean" } }, says: (p) => `Turn the torch ${p.on ? "on" : "off"}.` },
   find_phone: { label: "Find my phone", icon: "📍", on: ["android"], risk: "low", params: {}, says: () => "Turn the volume up, vibrate and say \"I'm here\" 5 times." },
   vibrate: { label: "Vibrate", icon: "📳", on: ["android"], risk: "low", params: {}, says: () => "Vibrate the phone." },
-  clipboard_to_note: { label: "Save clipboard", icon: "📋", on: ["android", "windows"], risk: "medium", params: {}, says: () => "Save whatever is on the clipboard as a note." },
+  clipboard_to_note: { label: "Save clipboard", icon: "📋", on: ["android", "windows"], risk: "high", params: {}, says: () => "Save whatever is on the clipboard as a note." },
   vault_sync: {
     label: "Sync notes folder",
     icon: "🗂️",
     on: ALL,
-    risk: "medium",
+    risk: "high",
     params: { path: { type: "string" } },
     says: (p) => `Copy the markdown notes in ${p.path} into your Notes, and keep them in sync every 5 minutes.`,
   },
@@ -213,6 +213,7 @@ export function checkParams(action: string, params: Record<string, unknown>): { 
     }
     out[name] = v;
   }
+  if (action === "run" && (String(out.command).length > 500 || String(out.command).split("\n").length > 5)) return { ok: false, error: "Commands can be at most 500 characters and 5 lines" };
   if (action === "open_url" && !/^https?:\/\//i.test(String(out.url))) return { ok: false, error: "Links must start with http:// or https://" };
   return { ok: true, params: out };
 }

@@ -19,7 +19,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const IS_WIN = process.platform === "win32";
 const IS_TERMUX = Boolean(process.env.PREFIX?.includes("com.termux")) || fs.existsSync("/data/data/com.termux");
 const KIND = IS_WIN ? "windows" : IS_TERMUX ? "android" : "other";
@@ -36,7 +36,7 @@ const MAX_APPROVAL_AGE = 24 * 60 * MIN;
 const SOON_ONLY = new Set(["sleep_now", "shutdown", "restart", "lock"]);
 // Risky actions also need a Yes on the device itself, showing exactly what will happen. The dashboard
 // can be hacked; this dialog can't be faked from outside the device.
-const CONFIRM_ON_DEVICE = new Set(["run", "read_file", "trust_key", "vault_sync"]);
+const CONFIRM_ON_DEVICE = new Set(["run", "read_file", "trust_key", "vault_sync", "clipboard_to_note", "empty_recycle_bin"]);
 // Characters that could make what you read differ from what runs.
 const SNEAKY = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
 
@@ -146,6 +146,13 @@ const str = (v, name, max = 500) => {
   if (SNEAKY.test(v)) throw new Error(`${name} has hidden characters. Not running it.`);
   if (v.length > max) throw new Error(`${name} is too long.`);
   return v;
+};
+// Short enough that the whole command fits in the Yes/No box, nothing hidden below the fold.
+const command = (v) => {
+  const c = str(v, "command", 500);
+  if (c.split("\n").length > 5) throw new Error("Commands can be at most 5 lines.");
+  if (/ {20,}|\t/.test(c)) throw new Error("That command has long runs of spaces or tabs. Not running it.");
+  return c;
 };
 const appName = (v) => {
   const n = str(v, "name", 60).replace(/\.exe$/i, "");
@@ -258,7 +265,9 @@ const fingerprint = (id) => String(id).match(/.{1,4}/g).join("-");
 
 function onDeviceText(a, ctx) {
   const p = a.params ?? {};
-  if (a.action === "run") return `Run this command on ${os.hostname()}:\n\n${p.command}`;
+  if (a.action === "run") return `Run this command on ${os.hostname()} (${String(p.command).length} characters, ${String(p.command).split("\n").length} line(s)):\n\n${p.command}`;
+  if (a.action === "clipboard_to_note") return "Send whatever is on your clipboard right now to your dashboard as a note. Check it isn't a password.";
+  if (a.action === "empty_recycle_bin") return "Empty the recycle bin for good.";
   if (a.action === "read_file") return `Send the text of this file to your dashboard:\n\n${p.path}`;
   if (a.action === "vault_sync") return `Copy every markdown note in this folder into your dashboard, and keep syncing it:\n\n${p.path}`;
   const k = ctx.keys.find((x) => x.id === p.id);
@@ -482,7 +491,7 @@ while ((Get-Date) -lt $end) { [W.P]::SetThreadExecutionState([uint32]2147483651)
   },
   async run(p) {
     if (!cfg.allow_shell) throw new Error(`Commands are switched off on this device. To allow them, run on the device: node "${path.join(DIR, "second-brain-agent.mjs")}" shell on`);
-    const cmd = str(p.command, "command", 4000);
+    const cmd = command(p.command);
     const out = IS_WIN ? await ps(cmd, { timeout: 120_000 }) : await run("sh", ["-c", cmd], { timeout: 120_000 });
     return out.slice(-4000) || "Done (no output).";
   },
@@ -567,6 +576,12 @@ async function suggestions(s, keys) {
   return out;
 }
 
+// Pages saved with a web clipper are web text, not your own writing.
+function isClipping(rel, body) {
+  const head = body.startsWith("---") ? body.slice(0, body.indexOf("\n---", 3) + 1 || 2000) : "";
+  return /(^|\/)clippings?\//i.test(rel) || /^(source|url|link|original):\s*\S*https?:\/\//im.test(head) || /\bclippings?\b/i.test(head) || /#clippings?\b/i.test(body);
+}
+
 const vaultTags = (body) => [...new Set((body.match(/#[\p{L}\p{N}_-]+/gu) ?? []).map((t) => t.slice(1).toLowerCase()))].concat("obsidian");
 
 async function syncVault() {
@@ -591,7 +606,7 @@ async function syncVault() {
     const batch = changed.slice(i, i + 100).map(({ full, st }) => {
       const body = fs.readFileSync(full, "utf8").slice(0, 20000);
       const rel = path.relative(cfg.vault, full).split(path.sep).join("/");
-      return { external_id: `obsidian:${rel}`, title: path.basename(full, ".md"), body: body.trim() || `(empty) ${rel}`, tags: vaultTags(body), created_at: new Date(st.birthtimeMs || st.mtimeMs).toISOString(), source: "obsidian" };
+      return { external_id: `obsidian:${rel}`, title: path.basename(full, ".md"), body: body.trim() || `(empty) ${rel}`, tags: vaultTags(body), created_at: new Date(st.birthtimeMs || st.mtimeMs).toISOString(), source: isClipping(rel, body) ? "clipboard" : "obsidian" };
     });
     sent += await rpc("agent_notes", { p_token: cfg.token, p_notes: batch, p_bulk: bulk });
   }
@@ -625,7 +640,8 @@ async function execute(a, ctx) {
     saveState();
     if (CONFIRM_ON_DEVICE.has(a.action)) {
       if (a.action === "run" && !cfg.allow_shell) return { id: a.id, status: "failed", result: `Commands are switched off on this device. To allow them, run on the device: node "${path.join(DIR, "second-brain-agent.mjs")}" shell on` };
-      str(a.params?.command ?? a.params?.path ?? a.params?.id, "the request", 4000);
+      if (a.action === "run") command(a.params?.command);
+      else if (a.params?.path ?? a.params?.id) str(a.params?.path ?? a.params?.id, "the request", 1000);
       if (!(await confirmOnDevice(onDeviceText(a, ctx)))) throw new Error("Not confirmed on the device, so it didn't run.");
     }
     log("run", a.action, JSON.stringify(a.params));

@@ -176,12 +176,13 @@ begin
       left(x->>'title', 200),
       coalesce((x->>'created_at')::timestamptz, now()),
       -- Device notes are always marked, and can never pass as typed in the app.
-      case when x->>'source' = 'clipboard' then 'clipboard' else 'obsidian' end,
+      -- Anything unexpected counts as untrusted web text.
+      case when x->>'source' = 'obsidian' then 'obsidian' else 'clipboard' end,
       left(x->>'external_id', 500),
       p_bulk
     )
     on conflict (user_id, external_id) do update
-      set body = excluded.body, tags = excluded.tags, title = excluded.title,
+      set body = excluded.body, tags = excluded.tags, title = excluded.title, source = excluded.source,
           processed = case when notes.body = excluded.body then notes.processed else p_bulk end;
     n := n + 1;
   end loop;
