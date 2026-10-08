@@ -39,6 +39,12 @@ export default function DevicesSetup() {
   }, []);
 
   useEffect(() => {
+    getApprover()
+      .then((k) => setMyKey(k.id))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     load();
     const t = setInterval(load, 10000);
     return () => clearInterval(t);
@@ -92,6 +98,12 @@ export default function DevicesSetup() {
           signed by this browser, so not even the server can make it run anything.
         </p>
       </div>
+
+      {myKey && (
+        <p className="rounded-xl bg-zinc-500/5 px-3 py-2 text-xs text-zinc-500">
+          This browser&apos;s code: <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-200">{myKey.match(/.{1,4}/g)?.join("-")}</span>. If a device asks to trust a new browser, check its code matches this one.
+        </p>
+      )}
 
       {devices.map((d) => {
         const i = d.info ?? {};
@@ -160,7 +172,9 @@ export default function DevicesSetup() {
         <summary className="cursor-pointer">How it stays safe</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>Every yes is signed with a key made in this browser that never leaves it. The agent checks the signature against keys it trusts locally, so a leaked database or server still can&apos;t make it act.</li>
-          <li>A new browser has to be allowed by one the device already trusts.</li>
+          <li>Running a command, reading a file, syncing a folder or trusting a new browser also needs a Yes on the device&apos;s own screen, showing exactly what will happen. A hacked website can&apos;t fake that.</li>
+          <li>A new browser has to be allowed by one the device already trusts, after you check its code matches.</li>
+          <li>The command you paste works once. The device then makes its own secret that never leaves it.</li>
           <li>It only knows a fixed list of actions. &quot;Run a command&quot; is off until you switch it on, on the device itself: <code>node second-brain-agent.mjs shell on</code></li>
           <li>Your files stay on the device. Only status (battery, storage) and the results of actions you approve are sent, plus notes from a folder you choose to sync.</li>
           <li>Free and open source: read the agent at <a className="underline" href="https://github.com/abizar-huseni/second-brain/blob/main/public/agent/second-brain-agent.mjs" target="_blank" rel="noreferrer">public/agent</a>.</li>

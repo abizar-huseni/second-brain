@@ -128,20 +128,29 @@ export default function DevicesCard() {
 
       {pending.map((a) => {
         const item = CATALOG[a.action];
+        const high = !item || item.risk === "high";
         return (
           <div key={a.id} className="pop rounded-2xl border-l-4 border-l-[var(--accent)] bg-zinc-500/5 p-3">
             <div className="flex items-start gap-2">
               <span className="text-xl">{item?.icon ?? "❔"}</span>
               <div className="min-w-0 flex-1">
+                {high && (
+                  <pre className="mb-2 whitespace-pre-wrap break-all rounded-xl bg-rose-500/10 px-2.5 py-2 text-xs font-semibold text-rose-800 dark:text-rose-200">
+                    {describe(a.action, a.params)}
+                  </pre>
+                )}
                 <p className="text-sm font-medium">{a.title}</p>
                 <p className="text-[11px] text-zinc-500">
                   {SOURCE[a.source]} · {name(a.device_id)} · {timeAgo(a.created_at)}
                 </p>
                 {a.why && <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{a.why}</p>}
-                <p className="mt-2 rounded-xl bg-[var(--surface)] px-2.5 py-1.5 text-xs">
-                  <span className={`mr-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase ${RISK_STYLE[item?.risk ?? "high"]}`}>{item?.risk ?? "unknown"}</span>
-                  {describe(a.action, a.params)}
-                </p>
+                {!high && (
+                  <p className="mt-2 rounded-xl bg-[var(--surface)] px-2.5 py-1.5 text-xs">
+                    <span className={`mr-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase ${RISK_STYLE[item.risk]}`}>{item.risk}</span>
+                    {describe(a.action, a.params)}
+                  </p>
+                )}
+                {high && <p className="mt-1 text-[11px] text-zinc-500">Your {name(a.device_id).toLowerCase()} will also ask you on its own screen before doing this.</p>}
               </div>
             </div>
             <div className="mt-2 flex gap-2">

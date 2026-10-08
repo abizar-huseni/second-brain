@@ -19,7 +19,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const IS_WIN = process.platform === "win32";
 const IS_TERMUX = Boolean(process.env.PREFIX?.includes("com.termux")) || fs.existsSync("/data/data/com.termux");
 const KIND = IS_WIN ? "windows" : IS_TERMUX ? "android" : "other";
@@ -31,7 +31,14 @@ const STATE = path.join(DIR, "state.json");
 const LOG = path.join(DIR, "agent.log");
 const PID = path.join(DIR, "agent.pid");
 const MIN = 60 * 1000;
-const MAX_APPROVAL_AGE = 7 * 24 * 60 * MIN;
+const MAX_APPROVAL_AGE = 24 * 60 * MIN;
+// Power actions must run soon after you approve them, never hours later when the laptop wakes up.
+const SOON_ONLY = new Set(["sleep_now", "shutdown", "restart", "lock"]);
+// Risky actions also need a Yes on the device itself, showing exactly what will happen. The dashboard
+// can be hacked; this dialog can't be faked from outside the device.
+const CONFIRM_ON_DEVICE = new Set(["run", "read_file", "trust_key", "vault_sync"]);
+// Characters that could make what you read differ from what runs.
+const SNEAKY = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
 
 // ---------- small helpers ----------
 
@@ -89,6 +96,15 @@ const psDetached = (script) => detached("powershell.exe", ["-NoProfile", "-NonIn
 
 const termux = (cmd, args = [], opts) => run(cmd, args, opts);
 
+// Never readable, even inside your home folder: keys, passwords, browser data, and this agent's own token.
+const SECRET_DIRS = /^(\.ssh|\.gnupg|\.aws|\.azure|\.kube|\.docker|\.config|AppData|Library|\.second-brain-agent|\.termux)$/i;
+const SECRET_FILES = /(\.kdbx|\.pem|\.key|\.pfx|\.p12|\.env)$|^id_|credential|secret|password|token|wallet/i;
+function notSecret(full) {
+  const parts = path.relative(HOME, full).split(path.sep);
+  if (full.startsWith(DIR) || parts.some((x) => SECRET_DIRS.test(x)) || SECRET_FILES.test(path.basename(full))) throw new Error("That file is private (keys, passwords or app data). Not reading it.");
+  return full;
+}
+
 function insideHome(p) {
   const full = path.resolve(String(p).replace(/^~(?=$|[\\/])/, HOME));
   const real = fs.existsSync(full) ? fs.realpathSync(full) : full;
@@ -127,7 +143,9 @@ const num = (v, min, max, name) => {
 };
 const str = (v, name, max = 500) => {
   if (typeof v !== "string" || !v.trim()) throw new Error(`Missing ${name}`);
-  return v.slice(0, max);
+  if (SNEAKY.test(v)) throw new Error(`${name} has hidden characters. Not running it.`);
+  if (v.length > max) throw new Error(`${name} is too long.`);
+  return v;
 };
 const appName = (v) => {
   const n = str(v, "name", 60).replace(/\.exe$/i, "");
@@ -220,6 +238,31 @@ function dirSize(p, budget = { n: 20_000 }) {
     }
   } catch {}
   return total;
+}
+
+// Asks on the device's own screen. Resolves true only on an explicit Yes within 2 minutes.
+async function confirmOnDevice(text) {
+  const msg = `${text}\n\nOnly say Yes if you asked for this just now.`;
+  try {
+    if (IS_WIN) return (await ps(`(New-Object -ComObject WScript.Shell).Popup(${psq(msg)}, 120, 'Second Brain: approve on this laptop?', 4 + 48 + 4096)`, { timeout: 130_000 })) === "6";
+    if (IS_TERMUX) return JSON.parse(await termux("termux-dialog", ["confirm", "-t", "Second Brain: approve?", "-i", msg], { timeout: 130_000 })).text === "yes";
+    if (process.platform === "darwin") return /Yes/.test(await run("osascript", ["-e", `display dialog ${JSON.stringify(msg)} buttons {"No", "Yes"} default button "No" giving up after 120`], { timeout: 130_000 }));
+    await run("zenity", ["--question", "--title=Second Brain", `--text=${msg}`, "--timeout=120"], { timeout: 130_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const fingerprint = (id) => String(id).match(/.{1,4}/g).join("-");
+
+function onDeviceText(a, ctx) {
+  const p = a.params ?? {};
+  if (a.action === "run") return `Run this command on ${os.hostname()}:\n\n${p.command}`;
+  if (a.action === "read_file") return `Send the text of this file to your dashboard:\n\n${p.path}`;
+  if (a.action === "vault_sync") return `Copy every markdown note in this folder into your dashboard, and keep syncing it:\n\n${p.path}`;
+  const k = ctx.keys.find((x) => x.id === p.id);
+  return `Let a new browser approve actions on ${os.hostname()}.\n\nIts code: ${fingerprint(p.id)}\n(name given by the dashboard: ${String(k?.name ?? p.name ?? "?").slice(0, 40)})\n\nOnly say Yes if this code matches the one shown on that browser's You page.`;
 }
 
 const ACTIONS = {
@@ -383,7 +426,7 @@ while ((Get-Date) -lt $end) { [W.P]::SetThreadExecutionState([uint32]2147483651)
     return found.length ? found.join("\n") : `Nothing named like "${q}" in ${root}.`;
   },
   async read_file(p) {
-    const file = insideHome(str(p.path, "path", 1000));
+    const file = notSecret(insideHome(str(p.path, "path", 1000)));
     const fd = fs.openSync(file, "r");
     const buf = Buffer.alloc(20_000);
     const n = fs.readSync(fd, buf, 0, buf.length, 0);
@@ -567,6 +610,7 @@ function verify(a) {
   if (!key) throw new Error("Not approved by a browser this device trusts.");
   const at = Date.parse(a.approved_at);
   if (!at || Date.now() - at > MAX_APPROVAL_AGE || at - Date.now() > 10 * MIN) throw new Error("Approval too old. Approve it again.");
+  if (SOON_ONLY.has(a.action) && Date.now() - at > 15 * MIN) throw new Error("Approved too long ago for a power action. Approve it again if you still want it.");
   const msg = stable(["second-brain-approval-v1", a.id, a.device_id, a.action, a.params ?? {}, new Date(at).toISOString()]);
   const ok = crypto.verify("sha256", Buffer.from(msg), { key: crypto.createPublicKey({ key: key.pub, format: "jwk" }), dsaEncoding: "ieee-p1363" }, Buffer.from(a.signature ?? "", "base64url"));
   if (!ok) throw new Error("Signature check failed. Not running it.");
@@ -579,6 +623,11 @@ async function execute(a, ctx) {
     if (!fn) throw new Error(`This agent (v${VERSION}) doesn't know "${a.action}". Reinstall it from the You page to update.`);
     state.done_ids = [...state.done_ids.slice(-499), a.id];
     saveState();
+    if (CONFIRM_ON_DEVICE.has(a.action)) {
+      if (a.action === "run" && !cfg.allow_shell) return { id: a.id, status: "failed", result: `Commands are switched off on this device. To allow them, run on the device: node "${path.join(DIR, "second-brain-agent.mjs")}" shell on` };
+      str(a.params?.command ?? a.params?.path ?? a.params?.id, "the request", 4000);
+      if (!(await confirmOnDevice(onDeviceText(a, ctx)))) throw new Error("Not confirmed on the device, so it didn't run.");
+    }
     log("run", a.action, JSON.stringify(a.params));
     const result = await fn(a.params ?? {}, ctx);
     return { id: a.id, status: "done", result: String(result ?? "Done.") };
@@ -668,7 +717,12 @@ async function pair(code) {
   if (!conf.supabase_url || !conf.anon_key) throw new Error("The dashboard didn't return its database settings.");
   const trusted = (data.p ?? []).filter((k) => keyId(k.pub) === k.id).map((k) => ({ id: k.id, name: k.name, pub: { kty: "EC", crv: "P-256", x: k.pub.x, y: k.pub.y } }));
   if (!trusted.length) throw new Error("The pairing code has no approval key. Open the You page in your browser and try again.");
-  cfg = { app: data.a, supabase_url: conf.supabase_url, anon_key: conf.anon_key, token: data.t, device_id: data.d, trusted_keys: trusted, allow_shell: Boolean(cfg?.allow_shell), vault: cfg?.vault ?? null };
+  const token = crypto.randomBytes(32).toString("base64url");
+  cfg = { app: data.a, supabase_url: conf.supabase_url, anon_key: conf.anon_key, token, device_id: data.d, trusted_keys: trusted, allow_shell: Boolean(cfg?.allow_shell), vault: cfg?.vault ?? null };
+  const claimed = await rpc("agent_claim", { p_pair: data.t, p_token_hash: crypto.createHash("sha256").update(token).digest("hex") }).catch((e) => {
+    throw new Error(/already used|expired/.test(e.message) ? "That code was already used or is over a day old. Make a new one on the You page." : e.message);
+  });
+  if (claimed !== data.d) throw new Error("The dashboard paired a different device. Make a new code on the You page.");
   saveCfg();
   await rpc("agent_poll", { p_token: cfg.token, p_info: await snapshot(), p_results: [] });
   console.log(`Paired as ${os.hostname()}. Approvals are trusted from: ${trusted.map((k) => k.name).join(", ")}.`);

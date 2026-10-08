@@ -1,7 +1,8 @@
 "use client";
 // Shared bits for the device panels on Today and You.
 import { supabase } from "./supabase";
-import { signApproval } from "./approver";
+import { signApproval, stable } from "./approver";
+import { checkParams } from "./agentCatalog";
 
 export type DeviceInfo = {
   agent?: string;
@@ -44,6 +45,10 @@ export async function loadDevices() {
 }
 
 export async function approve(a: DeviceAction) {
+  // Only sign exactly what the catalogue allows, so odd or hidden params never get a yes.
+  const c = checkParams(a.action, a.params);
+  if (!c.ok) throw new Error(`Not signing this: ${c.error}.`);
+  if (stable(c.params) !== stable(a.params)) throw new Error("Not signing this: its settings don't match what was shown.");
   const signed = await signApproval({ id: a.id, device_id: a.device_id, action: a.action, params: a.params });
   const { error } = await supabase.from("device_actions").update({ status: "approved", ...signed }).eq("id", a.id).eq("status", "proposed");
   if (error) throw new Error(error.message);

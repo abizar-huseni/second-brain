@@ -2,7 +2,8 @@
 -- only after you approve in the app. Applied automatically on deploy (scripts/migrate.mjs). Safe to re-run.
 --
 -- How it stays safe:
---   * Each device has its own secret token. Only its sha256 hash is stored here.
+--   * Each device has its own secret token, made on the device when it pairs. Only its sha256 hash
+--     is stored here. The code you paste is single-use, so a copy left in shell history is useless.
 --   * Approvals are signed in your browser with a key that never leaves it. The agent checks the
 --     signature against keys it trusts locally, so even someone with full access to this database
 --     can't make your laptop run anything.
@@ -51,6 +52,7 @@ create table if not exists device_actions (
   expires_at   timestamptz                         -- time-sensitive suggestions (e.g. "it's 2am, sleep?")
 );
 alter table device_actions add column if not exists expires_at timestamptz;
+alter table devices add column if not exists claimed boolean not null default false;
 create index if not exists device_actions_device_status on device_actions (device_id, status);
 
 -- Obsidian notes synced by the agent keep their file path here, so edits update the same note.
@@ -73,9 +75,24 @@ create or replace function agent_device(p_token text) returns devices
 language plpgsql security definer set search_path = public as $$
 declare d devices;
 begin
-  select * into d from devices where token_hash = encode(sha256(convert_to(coalesce(p_token, ''), 'UTF8')), 'hex') and not revoked;
+  select * into d from devices where token_hash = encode(sha256(convert_to(coalesce(p_token, ''), 'UTF8')), 'hex') and claimed and not revoked;
   if d.id is null then raise exception 'invalid device token' using errcode = '28000'; end if;
   return d;
+end $$;
+
+-- Pairing: swaps the single-use code from the install command for the device's own token. The agent
+-- makes that token itself and sends only its hash, so the real token never leaves the device.
+create or replace function agent_claim(p_pair text, p_token_hash text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare d_id uuid;
+begin
+  if p_token_hash !~ '^[0-9a-f]{64}$' then raise exception 'bad token hash'; end if;
+  update devices set token_hash = p_token_hash, claimed = true
+   where token_hash = encode(sha256(convert_to(coalesce(p_pair, ''), 'UTF8')), 'hex') and not claimed and not revoked
+     and created_at > now() - interval '1 day'
+  returning id into d_id;
+  if d_id is null then raise exception 'pairing code already used or expired' using errcode = '28000'; end if;
+  return d_id;
 end $$;
 
 -- Called by the agent every few seconds: reports status and results, collects approved actions.
@@ -124,6 +141,8 @@ declare
   n int := 0;
 begin
   for a in select * from jsonb_array_elements(coalesce(p_actions, '[]')) limit 10 loop
+    -- A device may only suggest its own safe fixes, never commands or file reads.
+    if a->>'action' not in ('screen_timeout', 'clean_temp', 'sleep_now', 'brightness', 'vault_sync', 'trust_key') then continue; end if;
     if a->>'dedupe' is not null and exists (
       select 1 from device_actions x
        where x.device_id = d.id and x.dedupe = a->>'dedupe'
@@ -169,6 +188,7 @@ begin
 end $$;
 
 revoke all on function agent_device(text) from public, anon, authenticated;
+grant execute on function agent_claim(text, text) to anon, authenticated;
 grant execute on function agent_poll(text, jsonb, jsonb) to anon, authenticated;
 grant execute on function agent_propose(text, jsonb) to anon, authenticated;
 grant execute on function agent_notes(text, jsonb, boolean) to anon, authenticated;

@@ -185,10 +185,15 @@ export function describe(action: string, params: Record<string, unknown>) {
 }
 
 // Checks params against the catalogue. Returns cleaned params or an error.
+// Hidden characters that could make what you read differ from what runs.
+const SNEAKY = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
+
 export function checkParams(action: string, params: Record<string, unknown>): { ok: true; params: Record<string, unknown> } | { ok: false; error: string } {
   const item = CATALOG[action];
   if (!item) return { ok: false, error: `Unknown action ${action}` };
   const out: Record<string, unknown> = {};
+  const extra = Object.keys(params ?? {}).filter((k) => !(k in item.params));
+  if (extra.length) return { ok: false, error: `Unexpected ${extra.join(", ")}` };
   for (const [name, spec] of Object.entries(item.params)) {
     let v = params?.[name];
     if (v === undefined || v === null || v === "") {
@@ -201,7 +206,9 @@ export function checkParams(action: string, params: Record<string, unknown>): { 
     } else if (spec.type === "boolean") {
       v = v === true || v === "true" || v === "on";
     } else {
-      v = String(v).slice(0, 2000);
+      v = String(v);
+      if ((v as string).length > 4000) return { ok: false, error: `${name} is too long` };
+      if (SNEAKY.test(v as string)) return { ok: false, error: `${name} has hidden characters` };
       if (spec.options && !spec.options.includes(v as string)) return { ok: false, error: `${name} must be one of ${spec.options.join(", ")}` };
     }
     out[name] = v;
