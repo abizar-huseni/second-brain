@@ -123,7 +123,7 @@ body {
     @apply rounded-2xl bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300;
   }
   /* Hints that a row scrolls sideways. */
-  .fade-right {
+  .fade-right[data-more] {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
     mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
   }

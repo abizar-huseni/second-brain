@@ -6,11 +6,13 @@ import { useEffect, useState } from "react";
 import { groupFor, ME, pageFor } from "@/lib/nav";
 import { buzz } from "@/lib/feel";
 import { useActiveSubTabs } from "@/lib/subtabs";
+import { useFadeRight } from "@/lib/useFadeRight";
 import { Avatar } from "./Nav";
 import ThemeToggle from "./ThemeToggle";
 
 // Title of the place you're in, its pages as pills, and (on the phone) theme + you.
 export default function TopBar({ initial }: { initial: string }) {
+  const fade = useFadeRight<HTMLDivElement>();
   const path = usePathname();
   const group = groupFor(path);
   const page = pageFor(path);
@@ -50,7 +52,7 @@ export default function TopBar({ initial }: { initial: string }) {
           </div>
         </div>
         {pills && (
-          <div className="no-scrollbar fade-right -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3">
+          <div ref={fade} className="no-scrollbar fade-right -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3">
             {pills.map((p) => {
               const on = page?.href === p.href;
               // The open page's own views sit inside its pill, so there's only ever one row.

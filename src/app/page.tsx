@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useFadeRight } from "@/lib/useFadeRight";
 import { checkinDay, daysAgo, toDay } from "@/lib/dates";
 import { goalProgress } from "@/lib/goals";
 import { ENERGY, faceFor, MOOD, moodColor } from "@/lib/moods";
@@ -365,6 +366,7 @@ const SKY = {
 // Remembers your last pick for the day; otherwise opens what suits the hour.
 type Panel = { key: string; label: string; icon: string; node: React.ReactNode };
 function More({ tabs, fallback }: { tabs: Panel[]; fallback: string }) {
+  const fade = useFadeRight<HTMLDivElement>();
   const store = `today-more:${toDay()}`;
   const [pick, setPick] = useState<string | null>(null);
   useEffect(() => {
@@ -375,7 +377,7 @@ function More({ tabs, fallback }: { tabs: Panel[]; fallback: string }) {
   const active = tabs.find((t) => t.key === pick) ?? tabs.find((t) => t.key === fallback) ?? tabs[0];
   return (
     <section className="space-y-3 pt-2">
-      <div className="no-scrollbar fade-right -mx-4 flex gap-1.5 overflow-x-auto px-4">
+      <div ref={fade} className="no-scrollbar fade-right -mx-4 flex gap-1.5 overflow-x-auto px-4">
         {tabs.map((t) => {
           const on = t.key === active.key;
           return (

@@ -10,6 +10,7 @@ import AIStatus from "@/components/AIStatus";
 import RulesCard from "@/components/RulesCard";
 import SituationCard from "@/components/SituationCard";
 import { DEFAULT_NAME } from "@/lib/useAssistant";
+import { useFadeRight } from "@/lib/useFadeRight";
 
 const PROMPT = `Study: course, university, what you're aiming for next
 Work: part-time hours and where
@@ -18,6 +19,7 @@ Health + training: goals, injuries, routine
 How my coach should talk to me: e.g. push me hard, call out excuses`;
 
 export default function MePage() {
+  const fade = useFadeRight<HTMLDivElement>();
   const [about, setAbout] = useState("");
   const [name, setName] = useState(DEFAULT_NAME);
   const [saved, setSaved] = useState("");
@@ -53,7 +55,7 @@ export default function MePage() {
         </div>
       </div>
 
-      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 text-xs">
+      <div ref={fade} className="no-scrollbar fade-right -mx-4 flex gap-2 overflow-x-auto px-4 text-xs sm:flex-wrap">
         {[
           { href: "#link", icon: "📲", label: "Link a device" },
           { href: "#situation", icon: "🎓", label: "Dates" },
