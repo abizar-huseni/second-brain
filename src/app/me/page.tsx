@@ -52,15 +52,16 @@ export default function MePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
+      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 text-xs">
         {[
           { href: "#link", icon: "📲", label: "Link a device" },
           { href: "#about", icon: "👤", label: "About me" },
+          { href: "#rules", icon: "📏", label: "Rules" },
+          { href: "#devices", icon: "🛰️", label: "Laptop + phone" },
           { href: "#connections", icon: "🔌", label: "Connections" },
-          { href: "#devices", icon: "🛰️", label: "Laptop + phone agent" },
         ].map((x) => (
-          <a key={x.href} href={x.href} className="card card-link flex flex-col items-center gap-1 px-2 py-3">
-            <span className="text-2xl">{x.icon}</span>
+          <a key={x.href} href={x.href} className="chip flex shrink-0 items-center gap-1.5 py-2">
+            <span className="text-base leading-none">{x.icon}</span>
             {x.label}
           </a>
         ))}
@@ -70,14 +71,11 @@ export default function MePage() {
         <LinkDevice />
       </div>
 
-      <div className="card">
-        <NotifyButton />
-      </div>
-
+      <p className="eyebrow">Your brain</p>
       <div id="about" className="card scroll-mt-20 space-y-2">
         <p className="label">👤 About me</p>
         <p className="text-xs text-zinc-500">Your assistant reads this before every brief, plan and insight. Rules and deadlines here (like visa work limits) are treated as hard limits.</p>
-        <textarea className="input" rows={8} placeholder={PROMPT} value={about} onChange={(e) => setAbout(e.target.value)} />
+        <textarea className="input" rows={6} placeholder={PROMPT} value={about} onChange={(e) => setAbout(e.target.value)} />
         <div>
           <label className="label">Your assistant&apos;s name</label>
           <input className="input" value={name} maxLength={24} onChange={(e) => setName(e.target.value)} />
@@ -87,16 +85,21 @@ export default function MePage() {
         </button>
         {saved && <p className="celebrate text-center text-sm text-emerald-600">{saved}</p>}
       </div>
-
-      <RulesCard />
-
+      <div id="rules" className="scroll-mt-20">
+        <RulesCard />
+      </div>
       <AIStatus />
 
+      <p className="eyebrow">Devices</p>
+      <DevicesSetup />
+      <div className="card">
+        <NotifyButton />
+      </div>
+
+      <p className="eyebrow">Connections</p>
       <div id="connections" className="scroll-mt-20">
         <Connections />
       </div>
-
-      <DevicesSetup />
 
       <button className="w-full rounded-2xl py-3 text-sm text-zinc-500 transition active:scale-95" onClick={() => supabase.auth.signOut()}>
         Sign out of this device
