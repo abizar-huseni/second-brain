@@ -22,16 +22,21 @@ export type BankData = {
   status: string;
   balance: number | null;
   transactions: { id: string; day: string; amount: number; description: string }[];
+  error?: string; // this account's transactions couldn't be fetched this time
 };
 
 // Every connected account with its balance and booked transactions since `from` (YYYY-MM-DD).
+// One failing account comes back with `error` instead of stopping the others; it only throws if every account fails.
 export async function fetchBankData(from: string): Promise<BankData[]> {
   const { accounts } = await lf<{ accounts: Account[] }>("/accounts");
-  return Promise.all(
+  const data = await Promise.all(
     accounts.map(async (a) => {
       const [bal, tx] = await Promise.all([
         lf<{ balance: { amount: number } }>(`/accounts/${a.id}/balance`).catch(() => null),
-        lf<{ transactions: Tx[] }>(`/accounts/${a.id}/transactions?from=${from}`),
+        lf<{ transactions: Tx[] }>(`/accounts/${a.id}/transactions?from=${from}`).then(
+          (r) => ({ transactions: r.transactions ?? [], error: undefined as string | undefined }),
+          (e) => ({ transactions: [] as Tx[], error: (e as Error).message }),
+        ),
       ]);
       return {
         id: a.id,
@@ -39,7 +44,8 @@ export async function fetchBankData(from: string): Promise<BankData[]> {
         bank: a.institution_name,
         logo: a.institution_logo ?? null,
         status: a.status,
-        balance: bal?.balance.amount ?? null,
+        balance: bal?.balance?.amount ?? null,
+        error: tx.error,
         transactions: tx.transactions
           .filter((t) => !t.isPending)
           .map((t) => ({
@@ -51,4 +57,6 @@ export async function fetchBankData(from: string): Promise<BankData[]> {
       };
     }),
   );
+  if (data.length && data.every((a) => a.error)) throw new Error(data[0].error);
+  return data;
 }

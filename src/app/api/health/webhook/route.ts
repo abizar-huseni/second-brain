@@ -1,4 +1,4 @@
-import { daysFromSamples, samplesFromPayload, TZ } from "@/lib/liveHealth";
+import { DAY_TYPES, daysFromSamples, samplesFromPayload, TZ, type Sample } from "@/lib/liveHealth";
 import { fromSyncToken, setStatus } from "@/lib/serviceDb";
 
 // Receives pushes from the HC Webhook Android app.
@@ -18,6 +18,7 @@ export async function POST(req: Request) {
 
   const samples = samplesFromPayload(payload);
   if (!samples.length) return Response.json({ ok: true, samples: 0 });
+  if (samples.length > 20000) return Response.json({ error: "Too many samples in one push (max 20000)" }, { status: 413 });
 
   const rows = samples.map((s) => ({ ...s, user_id }));
   for (let i = 0; i < rows.length; i += 500) {
@@ -26,19 +27,35 @@ export async function POST(req: Request) {
   }
 
   // Recalculate every day touched by this push from all stored samples (payloads are incremental).
-  const times = samples.flatMap((s) => [Date.parse(s.start_time), Date.parse(s.end_time)]);
-  const from = new Date(Math.min(...times) - 36 * 3600 * 1000).toISOString();
-  const to = new Date(Math.max(...times) + 36 * 3600 * 1000).toISOString();
-  const { data: all, error } = await db
-    .from("health_samples")
-    .select("type,start_time,end_time,value,value_min")
-    .eq("user_id", user_id)
-    .gte("end_time", from)
-    .lte("start_time", to);
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const s of samples) {
+    lo = Math.min(lo, Date.parse(s.start_time), Date.parse(s.end_time));
+    hi = Math.max(hi, Date.parse(s.start_time), Date.parse(s.end_time));
+  }
+  const from = new Date(lo - 36 * 3600 * 1000).toISOString();
+  const to = new Date(hi + 36 * 3600 * 1000).toISOString();
+  // PostgREST returns at most 1000 rows per request, so read in pages.
+  const all: Sample[] = [];
+  for (let off = 0; ; off += 1000) {
+    const { data, error } = await db
+      .from("health_samples")
+      .select("type,start_time,end_time,value,value_min")
+      .eq("user_id", user_id)
+      .in("type", DAY_TYPES)
+      .gte("end_time", from)
+      .lte("start_time", to)
+      .order("start_time")
+      .order("type")
+      .order("end_time")
+      .range(off, off + 999);
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    all.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
 
   const touched = new Set(samples.map((s) => new Date(s.type === "sleep" ? s.end_time : s.start_time).toLocaleDateString("en-CA", { timeZone: TZ })));
-  const patches = daysFromSamples(all ?? []).filter((d) => touched.has(d.day));
+  const patches = daysFromSamples(all).filter((d) => touched.has(d.day));
   for (const p of patches) {
     const { error: e } = await db.from("health_days").upsert({ ...p, user_id, updated_at: new Date().toISOString() }, { onConflict: "user_id,day" });
     if (e) return Response.json({ error: e.message }, { status: 500 });

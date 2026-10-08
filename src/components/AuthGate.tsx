@@ -1,18 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
+import { isAuthRetryableFetchError, type Session } from "@supabase/supabase-js";
 import { isConfigured, supabase } from "@/lib/supabase";
 import Shell from "./Shell";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  // "offline": a saved session whose token couldn't be refreshed (no signal). Keep the app open; supabase
+  // refreshes it in the background once the network is back (TOKEN_REFRESHED below), and the server still checks the JWT.
+  const [session, setSession] = useState<Session | null | undefined | "offline">(undefined);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
     if (!isConfigured) return;
-    linkFromQr().then(() => supabase.auth.getSession().then(({ data }) => setSession(data.session)));
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    linkFromQr()
+      .then(() => supabase.auth.getSession())
+      .then(({ data, error }) => setSession(data.session ?? (error && isAuthRetryableFetchError(error) ? "offline" : null)))
+      .catch(() => setSession(null)); // INITIAL_SESSION is ignored below, so never leave the spinner up forever
+    const { data } = supabase.auth.onAuthStateChange((e, s) => {
+      if (e === "INITIAL_SESSION") return; // getSession() above sets the first state (INITIAL_SESSION is null when offline)
+      setSession(s);
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
@@ -35,7 +43,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
   if (!session) return <Login />;
 
-  return <Shell email={session.user.email ?? ""}>{children}</Shell>;
+  return <Shell email={session === "offline" ? "" : (session.user.email ?? "")}>{children}</Shell>;
 }
 
 // Scanning "Link a device" on a signed-in device opens /pair#pair=<one-time code>. Sign in with it,

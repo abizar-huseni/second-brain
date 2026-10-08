@@ -91,7 +91,7 @@ export default function QuitPage() {
 
   return (
     <div className="stagger space-y-4">
-      <QuitCard />
+      <QuitCard onChange={load} />
 
       <div className="grid grid-cols-3 gap-3">
         <Stat value={String(beaten)} label="Cravings beaten" />

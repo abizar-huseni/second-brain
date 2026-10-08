@@ -38,8 +38,20 @@ export default function HealthPage() {
     const rows = buildHealthDays(files);
     if (!rows.length) return setStatus("No health data found. Pick the CSV files from your Samsung Health export.");
     setStatus(`Saving ${rows.length} days…`);
+    // Keep what the watch or a manual entry already saved where these files have no data.
+    const existing = new Map<string, HealthDay>();
+    for (let off = 0; ; off += 1000) {
+      const { data, error } = await supabase.from("health_days").select("*").gte("day", rows[0].day).lte("day", rows[rows.length - 1].day).order("day").range(off, off + 999);
+      if (error) return setStatus(`Error: ${error.message}`);
+      for (const d of data ?? []) existing.set(d.day, d);
+      if (!data || data.length < 1000) break;
+    }
     for (let i = 0; i < rows.length; i += 200) {
-      const chunk = rows.slice(i, i + 200).map((r) => ({ ...r, updated_at: new Date().toISOString() }));
+      const chunk = rows.slice(i, i + 200).map((r) => {
+        const old = existing.get(r.day);
+        const merged = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? old?.[k as keyof HealthDay] ?? null]));
+        return { ...merged, updated_at: new Date().toISOString() };
+      });
       const { error } = await supabase.from("health_days").upsert(chunk, { onConflict: "user_id,day" });
       if (error) return setStatus(`Error: ${error.message}`);
     }

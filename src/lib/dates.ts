@@ -12,9 +12,19 @@ export function daysAgo(n: number): string {
   return toDay(d);
 }
 
+// A night check-in done after midnight (before 4am) still belongs to the day before.
+export function checkinDay(kind: "morning" | "night", d: Date = new Date()): string {
+  if (kind === "night" && d.getHours() < 4) {
+    const prev = new Date(d);
+    prev.setDate(prev.getDate() - 1);
+    return toDay(prev);
+  }
+  return toDay(d);
+}
+
 // Good habit: consecutive days done, counting back from today (or yesterday if today isn't ticked yet).
-// Bad habit: consecutive clean days since the last slip.
-export function streak(days: Set<string>, kind: "good" | "bad"): number {
+// Bad habit: consecutive clean days since the last slip, never further back than the day it was added.
+export function streak(days: Set<string>, kind: "good" | "bad", createdAt?: string): number {
   let count = 0;
   if (kind === "good") {
     let i = days.has(toDay()) ? 0 : 1;
@@ -23,7 +33,8 @@ export function streak(days: Set<string>, kind: "good" | "bad"): number {
       i++;
     }
   } else {
-    while (count < 365 && !days.has(daysAgo(count))) count++;
+    const start = createdAt ? toDay(new Date(createdAt)) : daysAgo(364);
+    while (count < 365 && daysAgo(count) >= start && !days.has(daysAgo(count))) count++;
   }
   return count;
 }

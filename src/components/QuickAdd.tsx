@@ -33,7 +33,11 @@ export default function QuickAdd() {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(close, ms);
   };
+  // Set while saving: words the recognizer finishes after Save must not land in the next thought.
+  const muted = useRef(false);
+  const busy = useRef(false);
   const speech = useSpeech((fin, int) => {
+    if (muted.current) return;
     if (fin) setText((t) => `${t}${t && !t.endsWith(" ") ? " " : ""}${fin.trim()}`);
     setInterim(int);
   });
@@ -61,14 +65,31 @@ export default function QuickAdd() {
   function close() {
     if (timer.current) clearTimeout(timer.current);
     speech.stop();
+    setInterim("");
     setOpen(false);
     setReply("");
     setDone("");
   }
 
   async function save() {
+    if (busy.current) return;
+    // Save what's on screen, including words still being recognised.
+    const body = (mode === "thought" && interim ? `${text} ${interim}` : text).trim();
+    // Nothing on screen yet: stop, but let the late words land so the next tap saves them.
+    if (mode === "thought" && !body) return speech.stop();
+    muted.current = true;
     speech.stop();
-    const body = text.trim();
+    setText(body);
+    setInterim("");
+    busy.current = true;
+    try {
+      await write(body);
+    } finally {
+      busy.current = false;
+    }
+  }
+
+  async function write(body: string) {
     if (mode === "thought" && body) {
       const { data, error } = await supabase.from("notes").insert({ body, tags: extractTags(body) }).select("id").single();
       if (error) return setDone(error.message);
@@ -139,7 +160,11 @@ export default function QuickAdd() {
                   {speech.supported && (
                     <button
                       type="button"
-                      onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                      onClick={() => {
+                        if (speech.listening) return speech.stop();
+                        muted.current = false;
+                        speech.start();
+                      }}
                       className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition ${speech.listening ? "bg-rose-500 text-white" : "bg-zinc-100 dark:bg-zinc-800"}`}
                     >
                       <span className={speech.listening ? "pop inline-block" : ""}>🎙️</span>

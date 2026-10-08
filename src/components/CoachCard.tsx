@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { toDay } from "@/lib/dates";
+import { lday, TZ } from "@/lib/ldates";
 import type { Brief } from "@/lib/coach";
 import { callApi, NOT_CONFIGURED } from "@/lib/api";
 import { useAssistantName } from "@/lib/useAssistant";
@@ -10,8 +10,9 @@ import Cited from "./Cited";
 
 const AREA_ICON: Record<string, string> = { growth: "🌱", fitness: "💪", mind: "🧠", money: "💷", work: "💼" };
 
-// One brief per morning and one per evening, saved in the database (the heartbeat usually writes it before you wake up).
-const slot = () => (new Date().getHours() < 15 ? "am" : "pm");
+// One brief per morning and one per evening, saved in the database. The heartbeat writes them at 7am and 6pm
+// London time and sends the push, so the app only makes one itself once that time has passed.
+const londonHour = () => Number(new Date().toLocaleString("en-GB", { timeZone: TZ, hour: "numeric", hourCycle: "h23" }));
 
 export default function CoachCard() {
   const name = useAssistantName();
@@ -21,11 +22,28 @@ export default function CoachCard() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [asking, setAsking] = useState(false);
+  const [early, setEarly] = useState("");
 
   const load = useCallback(async (fresh = false) => {
     if (!fresh) {
-      const { data } = await supabase.from("briefs").select("content").eq("day", toDay()).eq("slot", slot()).maybeSingle();
+      const hour = londonHour();
+      const slot = hour < 15 ? "am" : "pm";
+      const { data } = await supabase.from("briefs").select("content").eq("day", lday()).eq("slot", slot).maybeSingle();
       if (data?.content) return setBrief(data.content as Brief);
+      // Too early for this slot: leave it to the heartbeat and show the latest brief (today's or yesterday's) meanwhile.
+      if (hour < (slot === "am" ? 7 : 18)) {
+        const { data: last } = await supabase
+          .from("briefs")
+          .select("content")
+          .gte("day", lday(-1))
+          .order("day", { ascending: false })
+          .order("slot", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (last?.content) setBrief(last.content as Brief);
+        else setEarly(slot === "am" ? "7am" : "6pm");
+        return;
+      }
     }
     setLoading(true);
     setError("");
@@ -81,6 +99,7 @@ export default function CoachCard() {
         </div>
       )}
       {error && <p className="text-sm text-amber-600">{error}</p>}
+      {!brief && !loading && !error && early && <p className="text-sm text-zinc-500">Your brief lands at {early}. Tap New brief for one now.</p>}
 
       {brief && (
         <div key={brief.headline} className="stagger space-y-2">

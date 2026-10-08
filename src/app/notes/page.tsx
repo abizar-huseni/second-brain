@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { extractTags } from "@/lib/notes";
 import MindMap from "@/components/MindMap";
@@ -13,6 +13,9 @@ export default function NotesPage() {
   const [tag, setTag] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "map">("list");
   const [query, setQuery] = useState("");
+  const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+  const busy = useRef(false);
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("notes").select("*").order("pinned", { ascending: false }).order("created_at", { ascending: false });
@@ -24,8 +27,15 @@ export default function NotesPage() {
   }, [load]);
 
   async function add() {
-    if (!body.trim()) return;
-    const { data } = await supabase.from("notes").insert({ body: body.trim(), tags: extractTags(body) }).select("id").single();
+    if (busy.current || !body.trim()) return;
+    busy.current = true;
+    setSaving(true);
+    const { data, error } = await supabase.from("notes").insert({ body: body.trim(), tags: extractTags(body) }).select("id").single();
+    busy.current = false;
+    setSaving(false);
+    // Keep the text if it didn't save.
+    if (error) return setMsg(error.message);
+    setMsg("");
     setBody("");
     load();
     // The assistant files it in the background (rule, fact, idea...), then we refresh.
@@ -61,8 +71,9 @@ export default function NotesPage() {
         />
         <div className="flex items-center justify-between">
           <span className="text-xs text-zinc-500">{extractTags(body).map((t) => `#${t}`).join(" ")}</span>
-          <button className="btn" onClick={add}>Save</button>
+          <button className="btn" disabled={saving} onClick={add}>Save</button>
         </div>
+        {msg && <p className="notice">{msg}</p>}
       </div>
 
       <div className="flex gap-2">
@@ -104,8 +115,10 @@ export default function NotesPage() {
                 <button key={t} onClick={() => setTag(t)} className="rounded-full bg-zinc-100 px-2 py-0.5 dark:bg-zinc-800">#{t}</button>
               ))}
               <span className="ml-auto">{new Date(n.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
-              <button onClick={() => togglePin(n)}>{n.pinned ? "★" : "☆"}</button>
-              <button onClick={() => remove(n)}>✕</button>
+              <button onClick={() => togglePin(n)} aria-label={n.pinned ? "Unpin note" : "Pin note"} aria-pressed={n.pinned}>
+                {n.pinned ? "★" : "☆"}
+              </button>
+              <button onClick={() => remove(n)} aria-label="Delete note">✕</button>
             </div>
           </li>
         ))}

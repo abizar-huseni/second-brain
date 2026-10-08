@@ -13,7 +13,9 @@ export function samplesFromPayload(p: Rec): Sample[] {
   const out: Sample[] = [];
   const push = (type: string, start: unknown, end: unknown, value: number, value_min: number | null = null) => {
     if (typeof start !== "string" || typeof end !== "string" || !isFinite(value)) return;
-    out.push({ type, start_time: start, end_time: end, value, value_min });
+    // Postgres accepts 'infinity' and 'epoch', so only real dates get through, stored as ISO.
+    if (!Number.isFinite(Date.parse(start)) || !Number.isFinite(Date.parse(end))) return;
+    out.push({ type, start_time: new Date(start).toISOString(), end_time: new Date(end).toISOString(), value, value_min });
   };
 
   for (const r of arr(p, "steps")) push("steps", r.start_time, r.end_time, n(r.count));
@@ -28,7 +30,7 @@ export function samplesFromPayload(p: Rec): Sample[] {
   for (const r of arr(p, "sleep")) {
     const secs = n(r.duration_seconds);
     const end = r.session_end_time;
-    if (typeof end !== "string" || !isFinite(secs)) continue;
+    if (typeof end !== "string" || !Number.isFinite(Date.parse(end)) || !isFinite(secs)) continue;
     // Count only time actually asleep when stages are present, and keep each awake spell
     // so the Sleep card can show wake-ups in the night.
     const stages = Array.isArray(r.stages) ? (r.stages as Rec[]) : [];
@@ -67,6 +69,47 @@ export type DayPatch = {
   hr_min?: number;
 };
 
+// The sample types daysFromSamples reads.
+export const DAY_TYPES = ["steps", "distance", "active_calories", "exercise", "sleep", "heart_rate", "resting_heart_rate"];
+
+// Adds up a flow (steps, metres, kcal) without double counting. Two apps can send the same walk
+// (one as a single long record, the other minute by minute), and a revised record is stored again
+// with its new end_time, so records that overlap are never both counted: it keeps the set of
+// non-overlapping records with the largest total. One app's own records don't overlap, so this is
+// at least the fuller app's total. Each kept record counts for its start day, as before.
+function addOverTime(samples: Sample[], add: (day: string, v: number) => void) {
+  const recs = samples
+    .map((s) => {
+      const a = Date.parse(s.start_time);
+      const b = Math.max(Date.parse(s.end_time), a + 1000); // zero-length counts as 1 second
+      return { a, b, v: Number(s.value), day: localDay(s.start_time) };
+    })
+    .filter((r) => Number.isFinite(r.a) && Number.isFinite(r.b) && Number.isFinite(r.v))
+    .sort((x, y) => x.b - y.b);
+  // best[i]: largest total from the first i records (by end); prev[i]: how many of those end by record i's start.
+  const best = [0];
+  const prev: number[] = [];
+  for (let i = 0; i < recs.length; i++) {
+    let lo = 0;
+    let hi = i;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (recs[mid].b <= recs[i].a) lo = mid + 1;
+      else hi = mid;
+    }
+    prev.push(lo);
+    best.push(Math.max(best[i], best[lo] + recs[i].v));
+    add(recs[i].day, 0); // a day with records always gets the field
+  }
+  for (let i = recs.length; i > 0; ) {
+    if (best[i] === best[i - 1]) i--;
+    else {
+      add(recs[i - 1].day, recs[i - 1].v);
+      i = prev[i - 1];
+    }
+  }
+}
+
 // Aggregates raw samples into per-day fields. Only fields with data are set,
 // so live data never wipes out what a CSV import filled in.
 export function daysFromSamples(samples: Sample[]): DayPatch[] {
@@ -76,24 +119,15 @@ export function daysFromSamples(samples: Sample[]): DayPatch[] {
     if (!d) days.set(day, (d = { day, _hr: [], _hrMin: [], _rhr: [], _sleep: [] }));
     return d;
   };
+  const flows: Record<"steps" | "distance" | "active_calories", Sample[]> = { steps: [], distance: [], active_calories: [] };
   for (const s of samples) {
     const v = Number(s.value);
     switch (s.type) {
-      case "steps": {
-        const d = get(localDay(s.start_time));
-        d.steps = (d.steps ?? 0) + v;
+      case "steps":
+      case "distance":
+      case "active_calories":
+        flows[s.type].push(s);
         break;
-      }
-      case "distance": {
-        const d = get(localDay(s.start_time));
-        d.distance_km = Math.round(((d.distance_km ?? 0) + v / 1000) * 100) / 100;
-        break;
-      }
-      case "active_calories": {
-        const d = get(localDay(s.start_time));
-        d.calories = Math.round((d.calories ?? 0) + v);
-        break;
-      }
       case "exercise": {
         const d = get(localDay(s.start_time));
         d.exercise_min = Math.round((d.exercise_min ?? 0) + v / 60);
@@ -118,12 +152,27 @@ export function daysFromSamples(samples: Sample[]): DayPatch[] {
         break;
     }
   }
+  addOverTime(flows.steps, (day, v) => {
+    const d = get(day);
+    d.steps = (d.steps ?? 0) + v;
+  });
+  addOverTime(flows.distance, (day, v) => {
+    const d = get(day);
+    d.distance_km = (d.distance_km ?? 0) + v / 1000;
+  });
+  addOverTime(flows.active_calories, (day, v) => {
+    const d = get(day);
+    d.calories = (d.calories ?? 0) + v;
+  });
+  const min = (xs: number[]) => xs.reduce((a, b) => Math.min(a, b));
   return [...days.values()].map(({ _hr, _hrMin, _rhr, _sleep, ...d }) => {
     if (_sleep.length) d.sleep_min = Math.round(mergeSessions(_sleep).reduce((t, x) => t + x.asleep_s, 0) / 60);
     if (_hr.length) d.hr_avg = Math.round(_hr.reduce((a, b) => a + b, 0) / _hr.length);
-    if (_rhr.length) d.hr_min = Math.round(Math.min(..._rhr));
-    else if (_hrMin.length) d.hr_min = Math.round(Math.min(..._hrMin));
+    if (_rhr.length) d.hr_min = Math.round(min(_rhr));
+    else if (_hrMin.length) d.hr_min = Math.round(min(_hrMin));
     if (d.steps !== undefined) d.steps = Math.round(d.steps);
+    if (d.distance_km !== undefined) d.distance_km = Math.round(d.distance_km * 100) / 100;
+    if (d.calories !== undefined) d.calories = Math.round(d.calories);
     return d;
   });
 }

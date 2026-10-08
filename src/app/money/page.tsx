@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toDay } from "@/lib/dates";
+import { addDays } from "@/lib/ldates";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, gbp } from "@/lib/money";
-import { parseStatement } from "@/lib/statements";
+import { countable, parseStatement } from "@/lib/statements";
 import { cachedAccounts, lastSynced, syncBanks, type BankAccount } from "@/lib/bankClient";
 import Progress from "@/components/Progress";
 import type { Debt, Payslip, Transaction } from "@/lib/types";
@@ -56,8 +57,9 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
   const [note, setNote] = useState("");
 
   const month = toDay().slice(0, 7);
+  const rows = countable(tx);
   // Moving money between your own accounts isn't income or spending.
-  const thisMonth = tx.filter((t) => t.day.startsWith(month) && t.category !== "transfer");
+  const thisMonth = rows.filter((t) => t.day.startsWith(month) && t.category !== "transfer");
   const income = thisMonth.filter((t) => t.kind === "income").reduce((s, t) => s + Number(t.amount), 0);
   const spent = thisMonth.filter((t) => t.kind === "expense").reduce((s, t) => s + Number(t.amount), 0);
 
@@ -135,7 +137,7 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
       )}
 
       <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
-        {tx.slice(0, 30).map((t) => (
+        {rows.slice(0, 30).map((t) => (
           <li key={t.id} className="flex items-center gap-2 py-2 text-sm">
             <span className="w-14 text-xs text-zinc-500">{new Date(t.day + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
             <select
@@ -152,7 +154,7 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
             <button onClick={() => remove(t)} className="text-xs text-zinc-400">✕</button>
           </li>
         ))}
-        {!tx.length && <li className="py-2 text-center text-sm text-zinc-500">Nothing logged yet.</li>}
+        {!rows.length && <li className="py-2 text-center text-sm text-zinc-500">Nothing logged yet.</li>}
       </ul>
     </>
   );
@@ -165,8 +167,25 @@ function Banks({ reload }: { reload: () => void }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    setAccounts(cachedAccounts());
+    const cached = cachedAccounts();
+    setAccounts(cached);
     setSynced(lastSynced());
+    // The heartbeat syncs every 2 hours; show its balances when they're newer than this device's last sync.
+    supabase
+      .from("sync_status")
+      .select("last_ok, info")
+      .eq("source", "bank")
+      .maybeSingle()
+      .then(({ data }) => {
+        const server = (data?.info as { accounts?: Partial<BankAccount>[] } | null)?.accounts;
+        const localAt = lastSynced(); // read now, in case "Sync now" finished first
+        if (!data?.last_ok || !server?.length) return;
+        if (localAt && Date.parse(localAt) >= Date.parse(data.last_ok)) return;
+        // The server doesn't keep logos yet, so reuse this device's.
+        const logo = (a: Partial<BankAccount>) => a.logo ?? cached.find((c) => c.bank === a.bank && c.name === a.name)?.logo ?? null;
+        setAccounts(server.map((a, i) => ({ id: a.id ?? i, name: a.name ?? "", bank: a.bank ?? "", logo: logo(a), status: a.status ?? "ACTIVE", balance: a.balance ?? null })));
+        setSynced(data.last_ok);
+      });
   }, []);
 
   async function sync() {
@@ -222,16 +241,24 @@ function StatementImport({ reload }: { reload: () => void }) {
     setStatus("Reading…");
     const { bank, rows } = parseStatement(await file.text(), account);
     if (!rows.length) return setStatus("Couldn't find transactions in that file. Make sure it's a CSV export.");
+    // Days a synced account at this bank already covers are skipped, so nothing is counted twice.
+    const edge = (ascending: boolean) =>
+      supabase.from("transactions").select("day").eq("source", "bank").ilike("account", `%${account}%`).order("day", { ascending }).limit(1).maybeSingle();
+    const [first, last] = await Promise.all([edge(true), edge(false)]);
+    const from = first.data?.day as string | undefined;
+    const to = last.data?.day as string | undefined;
+    const fresh = from && to ? rows.filter((r) => r.day < from || r.day > to) : rows;
     const before = await supabase.from("transactions").select("id", { count: "exact", head: true });
-    for (let i = 0; i < rows.length; i += 200) {
+    for (let i = 0; i < fresh.length; i += 200) {
       const { error } = await supabase
         .from("transactions")
-        .upsert(rows.slice(i, i + 200), { onConflict: "user_id,external_id", ignoreDuplicates: true });
+        .upsert(fresh.slice(i, i + 200), { onConflict: "user_id,external_id", ignoreDuplicates: true });
       if (error) return setStatus(`Error: ${error.message}`);
     }
     const after = await supabase.from("transactions").select("id", { count: "exact", head: true });
     const added = (after.count ?? 0) - (before.count ?? 0);
-    setStatus(`${bank} file: ${added} new transactions added, ${rows.length - added} already there.`);
+    const synced = rows.length - fresh.length;
+    setStatus(`${bank} file: ${added} new transactions added, ${fresh.length - added} already there${synced ? `, ${synced} skipped (already synced from your bank)` : ""}.`);
     reload();
   }
 
@@ -285,16 +312,39 @@ function Payslips({ slips, reload }: { slips: Payslip[]; reload: () => void }) {
     };
     const { error } = await supabase.from("payslips").insert(row);
     if (error) return alert(error.message);
-    // Take-home pay also counts as income for the month.
-    await supabase.from("transactions").insert({ kind: "income", amount: row.net, category: "salary", note: row.employer ? `Payslip: ${row.employer}` : "Payslip", day: row.pay_date });
+    // Take-home pay also counts as income for the month, unless bank sync covers the pay date or a CSV already has the pay.
+    const { data: near } = await supabase
+      .from("transactions")
+      .select("source, kind, amount, category, day")
+      .in("source", ["bank", "csv"])
+      .gte("day", addDays(row.pay_date, -10))
+      .lte("day", addDays(row.pay_date, 10));
+    const paid = (near ?? []).some(
+      (t) =>
+        t.source === "bank" ||
+        (t.kind === "income" && t.category !== "transfer" && Math.abs(Number(t.amount) - row.net) <= 1 && t.day >= addDays(row.pay_date, -5) && t.day <= addDays(row.pay_date, 5)),
+    );
+    if (!paid) await supabase.from("transactions").insert({ kind: "income", amount: row.net, category: "salary", note: row.employer ? `Payslip: ${row.employer}` : "Payslip", day: row.pay_date, source: "payslip" });
     setForm({ pay_date: toDay(), employer: form.employer });
     setOpen(false);
     reload();
   }
 
   async function remove(p: Payslip) {
-    if (!confirm("Delete this payslip? (The income entry stays; delete it from This month if needed.)")) return;
+    if (!confirm("Delete this payslip and its income entry?")) return;
     await supabase.from("payslips").delete().eq("id", p.id);
+    // Only one entry, so deleting a payslip saved twice keeps the other's. Older payslip entries were saved as "manual".
+    const { data: entry } = await supabase
+      .from("transactions")
+      .select("id")
+      .in("source", ["payslip", "manual"])
+      .eq("category", "salary")
+      .eq("note", p.employer ? `Payslip: ${p.employer}` : "Payslip")
+      .eq("day", p.pay_date)
+      .eq("amount", p.net)
+      .limit(1)
+      .maybeSingle();
+    if (entry) await supabase.from("transactions").delete().eq("id", entry.id);
     reload();
   }
 
