@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { daysAgo, toDay } from "@/lib/dates";
+import { checkinDay, daysAgo, toDay } from "@/lib/dates";
 import { goalProgress } from "@/lib/goals";
 import { ENERGY, faceFor, MOOD, moodColor } from "@/lib/moods";
 import Progress from "@/components/Progress";
@@ -85,7 +85,8 @@ export default function Today() {
 
   const today = toDay();
   const morning = data.checkins.find((c) => c.day === today && c.kind === "morning");
-  const night = data.checkins.find((c) => c.day === today && c.kind === "night");
+  // Before 4am, last night's check-in still counts as tonight's.
+  const night = data.checkins.find((c) => c.day === checkinDay("night") && c.kind === "night");
   const good = data.habits.filter((h) => h.kind === "good");
   const done = (h: Habit) => data.logs.some((l) => l.habit_id === h.id);
   const goodDone = good.filter(done).length;
@@ -301,10 +302,9 @@ const SKY = {
 
 // Day score: both check-ins plus every good habit.
 function dayScore(d: Data) {
-  const today = toDay();
   const good = d.habits.filter((h) => h.kind === "good");
   const done = good.filter((h) => d.logs.some((l) => l.habit_id === h.id)).length;
-  const checks = ["morning", "night"].filter((k) => d.checkins.some((c) => c.day === today && c.kind === k)).length;
+  const checks = (["morning", "night"] as const).filter((k) => d.checkins.some((c) => c.day === checkinDay(k) && c.kind === k)).length;
   return Math.round(((checks + done) / (2 + good.length)) * 100);
 }
 

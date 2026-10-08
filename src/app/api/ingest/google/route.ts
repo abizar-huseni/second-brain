@@ -55,9 +55,14 @@ export async function POST(req: Request) {
       all_day: e.all_day ?? false,
       location: e.location?.slice(0, 200) || null,
     }));
-    // The script sends the full next 7 days, so anything else in that window was cancelled.
+    // The script sends every event overlapping the next 7 days (including all-day and in-progress ones),
+    // so anything else stored in that window was cancelled.
     const now = new Date().toISOString();
-    const { data: stored } = await db.from("events").select("external_id").eq("user_id", userId).gte("starts_at", now);
+    const { data: stored } = await db
+      .from("events")
+      .select("external_id")
+      .eq("user_id", userId)
+      .or(`ends_at.gt.${now},and(ends_at.is.null,starts_at.gte.${now})`);
     const keep = new Set(events.map((e) => e.external_id));
     const gone = (stored ?? []).map((s) => s.external_id as string).filter((id) => !keep.has(id));
     if (gone.length) await db.from("events").delete().eq("user_id", userId).in("external_id", gone);

@@ -147,8 +147,11 @@ export function buildHealthDays(files: { name: string; text: string }[]): Health
   return [...days.values()]
     .map(({ _hr, _stress, ...d }) => ({
       ...d,
+      // These columns are int, so a fractional value would fail the whole save.
+      steps: d.steps === null ? null : Math.round(d.steps),
+      sleep_score: d.sleep_score === null ? null : Math.round(d.sleep_score),
       hr_avg: _hr.length ? Math.round(_hr.reduce((a, b) => a + b, 0) / _hr.length) : null,
-      hr_min: _hr.length ? Math.min(..._hr) : null,
+      hr_min: _hr.length ? Math.round(_hr.reduce((a, b) => Math.min(a, b))) : null,
       stress_avg: _stress.length ? Math.round(_stress.reduce((a, b) => a + b, 0) / _stress.length) : null,
     }))
     .sort((a, b) => a.day.localeCompare(b.day));

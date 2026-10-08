@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toDay } from "@/lib/dates";
 import { addDays, weekStart } from "@/lib/ldates";
@@ -37,20 +37,25 @@ export default function PlanPage() {
   const [msg, setMsg] = useState("");
 
   const load = useCallback(async () => {
-    const [t, b, p] = await Promise.all([
+    // The year plan is only redone every ~40 days, so fetch it on its own; fuel rows live in plans too, so leave them out.
+    const [t, b, p, y] = await Promise.all([
       supabase.from("tasks").select("*").or(`done.eq.false,day.gte.${today}`).order("must", { ascending: false }).order("created_at"),
       supabase.from("bills").select("*").order("next_due"),
-      supabase.from("plans").select("*").order("created_at", { ascending: false }).limit(20),
+      supabase.from("plans").select("*").in("kind", ["day", "week", "money"]).order("created_at", { ascending: false }).limit(30),
+      supabase.from("plans").select("*").eq("kind", "year").order("created_at", { ascending: false }).limit(1),
     ]);
     setTasks(t.data ?? []);
     setBills(b.data ?? []);
-    setPlans(p.data ?? []);
+    setPlans([...(p.data ?? []), ...(y.data ?? [])]);
     if (t.error?.message.includes("tasks")) setMsg("Plans and tasks are still setting up. They finish on the next deploy.");
   }, [today]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Ticks live here, so they survive the task list unmounting when you switch tabs.
+  const setDone = (id: string, done: boolean) => setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, done } : t)));
 
   const planFor = (kind: PlanKind, period?: string) => plans.find((p) => p.kind === kind && (!period || p.period === period));
   const periodFor: Record<Exclude<Tab, "today" | "tomorrow">, string> = { week, year: today.slice(0, 7), money: week };
@@ -69,8 +74,16 @@ export default function PlanPage() {
 
   async function addTasks(items: { title: string; day: string | null; must: boolean }[]) {
     const fresh = items.filter((i) => !tasks.some((t) => t.title === i.title && t.day === i.day));
-    if (fresh.length) await supabase.from("tasks").insert(fresh.map((i) => ({ ...i, source: "ai" })));
+    let ok = true;
+    if (fresh.length) {
+      const { error } = await supabase.from("tasks").insert(fresh.map((i) => ({ ...i, source: "ai" })));
+      if (error) {
+        setMsg(error.message);
+        ok = false;
+      }
+    }
     load();
+    return ok;
   }
 
   const dayTab = tab === "today" || tab === "tomorrow";
@@ -87,14 +100,16 @@ export default function PlanPage() {
         ))}
       </div>
 
+      {/* load() already leaves out old done tasks, so a tick here stays on screen until the next load. */}
       {dayTab && (
         <TaskList
           key={day}
           day={day}
-          tasks={tasks.filter((t) => t.day === day || (tab === "today" && !t.done && t.day !== null && t.day < today))}
-          someday={tab === "today" ? tasks.filter((t) => t.day === null && !t.done) : []}
+          tasks={tasks.filter((t) => t.day === day || (tab === "today" && t.day !== null && t.day < today))}
+          someday={tab === "today" ? tasks.filter((t) => t.day === null) : []}
           today={today}
           reload={load}
+          setDone={setDone}
         />
       )}
 
@@ -126,28 +141,41 @@ export default function PlanPage() {
         {msg && <p className="notice">{msg}</p>}
       </div>
 
-      {tab === "week" && <TaskList day={null} tasks={tasks.filter((t) => t.day === null && !t.done)} someday={[]} today={today} reload={load} />}
+      {tab === "week" && <TaskList day={null} tasks={tasks.filter((t) => t.day === null)} someday={[]} today={today} reload={load} setDone={setDone} />}
       {tab === "money" && <Bills bills={bills} today={today} reload={load} />}
     </div>
   );
 }
 
-function TaskList({ day, tasks, someday, today, reload }: { day: string | null; tasks: Task[]; someday: Task[]; today: string; reload: () => void }) {
+function TaskList({ day, tasks, someday, today, reload, setDone }: { day: string | null; tasks: Task[]; someday: Task[]; today: string; reload: () => void; setDone: (id: string, done: boolean) => void }) {
   const [title, setTitle] = useState("");
   const [must, setMust] = useState(false);
-  const [local, setLocal] = useState<Record<string, boolean>>({});
+  const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+  const busy = useRef(false);
 
   async function add() {
-    if (!title.trim()) return;
-    await supabase.from("tasks").insert({ title: title.trim(), day, must });
+    if (busy.current || !title.trim()) return;
+    busy.current = true;
+    setSaving(true);
+    const { error } = await supabase.from("tasks").insert({ title: title.trim(), day, must });
+    busy.current = false;
+    setSaving(false);
+    if (error) return setMsg(error.message);
+    setMsg("");
     setTitle("");
     setMust(false);
     reload();
   }
   async function toggle(t: Task) {
-    const done = !(local[t.id] ?? t.done);
-    setLocal((l) => ({ ...l, [t.id]: done }));
-    await supabase.from("tasks").update({ done, done_at: done ? new Date().toISOString() : null }).eq("id", t.id);
+    const done = !t.done;
+    setDone(t.id, done);
+    const { error } = await supabase.from("tasks").update({ done, done_at: done ? new Date().toISOString() : null }).eq("id", t.id);
+    // Put the tick back if it didn't save.
+    if (error) {
+      setDone(t.id, !done);
+      setMsg(error.message);
+    }
   }
   async function remove(t: Task) {
     await supabase.from("tasks").delete().eq("id", t.id);
@@ -155,7 +183,7 @@ function TaskList({ day, tasks, someday, today, reload }: { day: string | null; 
   }
 
   const row = (t: Task) => {
-    const done = local[t.id] ?? t.done;
+    const done = t.done;
     return (
       <li key={t.id} className="group flex items-center gap-3 py-1.5">
         <button
@@ -178,7 +206,7 @@ function TaskList({ day, tasks, someday, today, reload }: { day: string | null; 
     );
   };
 
-  const open = tasks.filter((t) => !(local[t.id] ?? t.done)).length;
+  const open = tasks.filter((t) => !t.done).length;
   return (
     <div className="card space-y-2">
       <div className="flex items-baseline justify-between">
@@ -198,8 +226,9 @@ function TaskList({ day, tasks, someday, today, reload }: { day: string | null; 
             {must ? "⭐" : "☆"}
           </button>
         )}
-        <button className="btn shrink-0">Add</button>
+        <button className="btn shrink-0" disabled={saving}>Add</button>
       </form>
+      {msg && <p className="notice">{msg}</p>}
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {tasks.map(row)}
         {someday.length > 0 && <li className="pt-3 text-xs font-medium uppercase tracking-wide text-zinc-400">Someday</li>}
@@ -209,7 +238,7 @@ function TaskList({ day, tasks, someday, today, reload }: { day: string | null; 
   );
 }
 
-function DayView({ plan, onAdd }: { plan: DayPlan; onAdd: (titles: string[]) => void }) {
+function DayView({ plan, onAdd }: { plan: DayPlan; onAdd: (titles: string[]) => Promise<boolean> }) {
   const [added, setAdded] = useState(false);
   return (
     <>
@@ -220,9 +249,10 @@ function DayView({ plan, onAdd }: { plan: DayPlan; onAdd: (titles: string[]) => 
           <button
             className="text-xs font-medium text-emerald-700 disabled:text-zinc-400 dark:text-emerald-400"
             disabled={added}
-            onClick={() => {
-              onAdd((plan.non_negotiables ?? []).map((n) => n.title));
+            onClick={async () => {
               setAdded(true);
+              // Let them try again if it didn't save.
+              if (!(await onAdd((plan.non_negotiables ?? []).map((n) => n.title)))) setAdded(false);
             }}
           >
             {added ? "Added ✓" : "＋ Add to my tasks"}
@@ -357,12 +387,22 @@ function Bills({ bills, today, reload }: { bills: Bill[]; today: string; reload:
   const [amount, setAmount] = useState("");
   const [due, setDue] = useState(today);
   const [every, setEvery] = useState("month");
-  const soon = bills.filter((b) => b.next_due <= addDays(today, 30));
+  const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+  const busy = useRef(false);
+  // A one-off that's already past isn't coming up any more.
+  const soon = bills.filter((b) => b.next_due <= addDays(today, 30) && (b.every !== "once" || b.next_due >= today));
   const total = soon.reduce((a, b) => a + Number(b.amount), 0);
 
   async function add() {
-    if (!name.trim() || !(Number(amount) > 0)) return;
-    await supabase.from("bills").insert({ name: name.trim(), amount: Number(amount), next_due: due, every });
+    if (busy.current || !name.trim() || !(Number(amount) > 0)) return;
+    busy.current = true;
+    setSaving(true);
+    const { error } = await supabase.from("bills").insert({ name: name.trim(), amount: Number(amount), next_due: due, every });
+    busy.current = false;
+    setSaving(false);
+    if (error) return setMsg(error.message);
+    setMsg("");
     setName("");
     setAmount("");
     reload();
@@ -410,10 +450,11 @@ function Bills({ bills, today, reload }: { bills: Bill[]; today: string; reload:
           <option value="year">Every year</option>
           <option value="once">One-off</option>
         </select>
-        <button className="btn" onClick={add}>
+        <button className="btn" disabled={saving} onClick={add}>
           Add
         </button>
       </div>
+      {msg && <p className="notice">{msg}</p>}
     </div>
   );
 }

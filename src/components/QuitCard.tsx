@@ -8,7 +8,8 @@ import { gbp } from "@/lib/money";
 import CravingSOS from "./CravingSOS";
 
 // Live "clean for" clock on Today, with the craving SOS one tap away.
-export default function QuitCard() {
+// onChange lets the /quit page reload its own stats after an SOS.
+export default function QuitCard({ onChange }: { onChange?: () => void } = {}) {
   const [quit, setQuit] = useState<Quit | null | undefined>(undefined);
   const [now, setNow] = useState(() => Date.now());
   const [sos, setSos] = useState(false);
@@ -86,7 +87,10 @@ export default function QuitCard() {
           quit={quit}
           onClose={(changed) => {
             setSos(false);
-            if (changed) load();
+            if (changed) {
+              load();
+              onChange?.();
+            }
           }}
         />
       )}

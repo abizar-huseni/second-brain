@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { toDay } from "@/lib/dates";
+import { checkinDay } from "@/lib/dates";
 import type { Checkin } from "@/lib/types";
 import { ENERGY, MOOD } from "@/lib/moods";
 import EmojiScale from "@/components/EmojiScale";
 import Confetti from "@/components/Confetti";
 
 const empty = (kind: Checkin["kind"]): Checkin => ({
-  day: toDay(),
+  day: checkinDay(kind),
   kind,
   mood: null,
   energy: null,
@@ -20,21 +20,35 @@ const empty = (kind: Checkin["kind"]): Checkin => ({
 });
 
 export default function CheckinPage() {
-  const [kind, setKind] = useState<Checkin["kind"]>(() => (new Date().getHours() < 15 ? "morning" : "night"));
+  const [kind, setKind] = useState<Checkin["kind"]>(() => {
+    const h = new Date().getHours();
+    return h < 4 || h >= 15 ? "night" : "morning";
+  });
   const [form, setForm] = useState<Checkin>(empty(kind));
+  const [loaded, setLoaded] = useState(false);
   const [saved, setSaved] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const req = useRef(0);
+
   const load = useCallback(async (k: Checkin["kind"]) => {
-    const { data } = await supabase.from("checkins").select("*").eq("day", toDay()).eq("kind", k).maybeSingle();
+    const id = ++req.current;
+    const { data } = await supabase.from("checkins").select("*").eq("day", checkinDay(k)).eq("kind", k).maybeSingle();
+    // A slower answer for the other tab must not land on top of this one.
+    if (id !== req.current) return;
     setForm(data ?? empty(k));
+    setLoaded(true);
   }, []);
+  // Until the picked tab's row is in, saving would overwrite it with a blank or other-tab form.
+  const ready = loaded && form.kind === kind;
 
   useEffect(() => {
     load(kind);
   }, [kind, load]);
 
   async function save() {
-    const { day, kind, mood, energy, priorities, wins, journal, hours_worked } = form;
+    if (!ready) return;
+    // Keep the day it was loaded for, so 23:50 opened and 00:10 saved still lands on tonight.
+    const { day, mood, energy, priorities, wins, journal, hours_worked } = form;
     const row = { day, kind, mood, energy, priorities, wins, journal, hours_worked };
     const { error } = await supabase.from("checkins").upsert(row, { onConflict: "user_id,day,kind" });
     setSaved({ ok: !error, text: error ? error.message : kind === "morning" ? "Locked in. Go win the day." : "Logged. Rest well, go again tomorrow." });
@@ -83,7 +97,7 @@ export default function CheckinPage() {
 
         <Field label="Journal" value={form.journal} onChange={(v) => set("journal", v)} rows={5} placeholder="What's on your mind?" />
 
-        <button className="btn btn-accent w-full py-3.5 text-base" onClick={save}>Save {kind} check-in</button>
+        <button className="btn btn-accent w-full py-3.5 text-base" disabled={!ready} onClick={save}>Save {kind} check-in</button>
         {saved?.ok && <Confetti />}
         {saved && (
           <div className="celebrate text-center">

@@ -132,3 +132,26 @@ export function parseStatement(text: string, account: string): { bank: string; r
   }
   return { bank, rows };
 }
+
+type Countable = { day: string; kind: string; amount: number | string; category: string; note?: string | null; account?: string | null; source?: string };
+const dayNo = (day: string) => Date.parse(`${day}T12:00:00Z`) / 86400000;
+
+// The rows that count towards In/Out totals: the same money arriving two ways (CSV and bank sync, payslip and bank) counts once.
+export function countable<T extends Countable>(tx: T[]): T[] {
+  // First and last day each Lunch Flow account has synced.
+  const synced = new Map<string, { from: string; to: string }>();
+  for (const t of tx) {
+    if (t.source !== "bank" || !t.account) continue;
+    const key = t.account.toLowerCase();
+    const r = synced.get(key) ?? { from: t.day, to: t.day };
+    synced.set(key, { from: t.day < r.from ? t.day : r.from, to: t.day > r.to ? t.day : r.to });
+  }
+  // Rule: a CSV row is ignored when a synced account at the same bank (e.g. "Lloyds") covers its date.
+  const twin = (t: T) =>
+    t.source === "csv" && !!t.account && [...synced].some(([acct, r]) => acct.includes(t.account!.toLowerCase()) && t.day >= r.from && t.day <= r.to);
+  // A payslip's income row is ignored once the bank or a CSV shows the real pay (within £1 and 5 days).
+  const paid = tx.filter((t) => (t.source === "bank" || t.source === "csv") && t.kind === "income" && t.category !== "transfer");
+  const payslip = (t: T) => t.kind === "income" && (t.source === "payslip" || (t.source !== "bank" && t.source !== "csv" && t.category === "salary" && !!t.note?.startsWith("Payslip")));
+  const shadowed = (t: T) => payslip(t) && paid.some((p) => Math.abs(Number(p.amount) - Number(t.amount)) <= 1 && Math.abs(dayNo(p.day) - dayNo(t.day)) <= 5);
+  return tx.filter((t) => !twin(t) && !shadowed(t));
+}

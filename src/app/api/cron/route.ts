@@ -16,9 +16,20 @@ export const maxDuration = 60;
 
 const HOUR = 3600 * 1000;
 
+// AI text can quote email, calendar and web text written by anyone, so a push never carries their links, addresses or phone numbers.
+const scrub = (s: string) =>
+  s
+    .replace(/\S+@\S+\.\S+/g, "")
+    .replace(/(https?:\/\/|www\.)\S+/gi, "")
+    .replace(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}\b(\/\S*)?/gi, "")
+    .replace(/\+?\(?\d[\d\s().-]{6,}\d/g, (m) => (m.replace(/\D/g, "").length >= 9 ? "" : m))
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
 // Heartbeat, called every 30 minutes by Supabase (see supabase/006_live.sql), so the dashboard
 // keeps itself up to date while your phone and laptop are off.
 export async function POST(req: Request) {
+  const now = Date.now();
   const auth = await fromSyncToken(req);
   if ("error" in auth) return auth.error;
   const { db, userId } = auth;
@@ -32,15 +43,23 @@ export async function POST(req: Request) {
   if (process.env.LUNCHFLOW_API_KEY && Date.now() - lastOk("bank") > 2 * HOUR - 5 * 60 * 1000) {
     try {
       const { count } = await db.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("source", "bank");
-      const from = new Date(Date.now() - (count ? 7 : 90) * 24 * HOUR).toISOString().slice(0, 10);
+      // When every account last synced: one failing account doesn't move it, so its gap is fetched once it's back.
+      const allOk = (status?.find((s) => s.source === "bank")?.info as { all_ok_at?: number } | null)?.all_ok_at ?? lastOk("bank");
+      // A week of overlap catches late-posting transactions; after an outage, go back to the last good sync (90 days at most).
+      const since = count ? Math.min(allOk - 3 * 24 * HOUR, Date.now() - 7 * 24 * HOUR) : 0;
+      const from = new Date(Math.max(since, Date.now() - 90 * 24 * HOUR)).toISOString().slice(0, 10);
       const accounts = await fetchBankData(from);
       const rows = bankRows(accounts).map((r) => ({ ...r, user_id: userId }));
       for (let i = 0; i < rows.length; i += 200) {
         const { error } = await db.from("transactions").upsert(rows.slice(i, i + 200), { onConflict: "user_id,external_id", ignoreDuplicates: true });
         if (error) throw new Error(error.message);
       }
-      const info = { accounts: accounts.map(({ bank, name, balance, status }) => ({ bank, name, balance, status })) };
+      const broken = accounts.filter((a) => a.error);
+      const allFine = !broken.length && accounts.every((a) => a.status === "ACTIVE");
+      const info = { accounts: accounts.map(({ bank, name, balance, status, error }) => ({ bank, name, balance, status, error })), all_ok_at: allFine ? Date.now() : allOk };
       await setStatus(db, userId, "bank", { ok: true, info });
+      // The healthy accounts still sync; a broken one shows as an error until it's back.
+      if (broken.length) await setStatus(db, userId, "bank", { error: `${broken.map((a) => `${a.bank} ${a.name}`).join(", ")}: ${broken[0].error}` });
       done.bank = `${rows.length} transactions checked`;
     } catch (e) {
       await setStatus(db, userId, "bank", { error: (e as Error).message });
@@ -48,66 +67,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // One AI job per run so each fits in the time limit. Runs the first job that is due:
-  // 6am think ahead → 7am brief → today's plan → year → week → money → 6pm brief → 8pm tomorrow's plan.
   const { day, slot, hour } = slotNow();
-  const tomorrow = addDays(day, 1);
-  const week = weekStart(day);
-  const { data: planRows } = await db.from("plans").select("kind, period, created_at").eq("user_id", userId).gte("created_at", new Date(Date.now() - 40 * 24 * HOUR).toISOString());
-  const hasPlan = (kind: string, period: string) => (planRows ?? []).some((p) => p.kind === kind && p.period === period);
-  const { data: briefRows } = await db.from("briefs").select("slot").eq("user_id", userId).eq("day", day);
-  const hasBrief = (s: string) => (briefRows ?? []).some((b) => b.slot === s);
-  const isSunday = new Date(`${day}T12:00:00Z`).getUTCDay() === 0;
-
-  const plan = (kind: PlanKind, period: string, push?: (c: Record<string, unknown>) => { title: string; body: string; url?: string }) => async () => {
-    const content = await makePlan(db, kind, period, userId);
-    if (push) await sendPush(db, userId, push(content));
-    return `${kind} plan for ${period}`;
-  };
-  // A job that failed waits 2 hours before retrying, so one bad answer never blocks the rest.
-  const failed = ((status?.find((s) => s.source === "ai")?.info as { failed?: Record<string, number> } | null)?.failed ?? {}) as Record<string, number>;
-  const { count: unfiled } = await db.from("notes").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("processed", false);
-  const jobs: [string, boolean, () => Promise<string>][] = [
-    ["file-thoughts", (unfiled ?? 0) > 0, async () => `${(await fileThoughts(db, { userId })).length} thoughts filed`],
-    ["think", hour >= 6 && lastDay("think") !== day, async () => {
-      const found = await think(db, userId);
-      await setStatus(db, userId, "think", { ok: true, info: { insights: found.length } });
-      const top = [...found].sort((a, b) => a.priority - b.priority)[0];
-      if (top?.priority === 1) await sendPush(db, userId, { title: `💡 ${top.title}`, body: top.body.slice(0, 160) });
-      return `${found.length} insights`;
-    }],
-    ["brief-am", slot === "am" && hour >= 7 && !hasBrief("am"), async () => {
-      const brief = await makeBrief(db, userId);
-      await sendPush(db, userId, { title: "☀️ Your morning brief", body: brief.headline });
-      return "am brief";
-    }],
-    ["fuel", hour >= 6 && !hasPlan("fuel", day), async () => {
-      const f = await makeFuel(db, day, userId);
-      return `fuel: ${f.theme}`;
-    }],
-    ["day", hour >= 6 && hour < 20 && !hasPlan("day", day), plan("day", day)],
-    ["year", hour >= 6 && !(planRows ?? []).some((p) => p.kind === "year"), plan("year", day.slice(0, 7))],
-    ["week", hour >= 6 && !hasPlan("week", week), plan("week", week)],
-    ["next-week", isSunday && hour >= 19 && !hasPlan("week", addDays(week, 7)), plan("week", addDays(week, 7))],
-    ["money", hour >= 6 && !hasPlan("money", week), plan("money", week)],
-    ["brief-pm", slot === "pm" && hour >= 18 && !hasBrief("pm"), async () => {
-      const brief = await makeBrief(db, userId);
-      await sendPush(db, userId, { title: "🌙 Evening check", body: brief.headline });
-      return "pm brief";
-    }],
-    ["tomorrow", hour >= 20 && !hasPlan("day", tomorrow), plan("day", tomorrow, (c) => ({ title: "📋 Tomorrow is planned", body: String(c.headline ?? "Your non-negotiables are ready."), url: "/plan" }))],
-  ];
-  const job = aiConfigured() ? jobs.find(([key, due]) => due && Date.now() - (failed[key] ?? 0) > 2 * HOUR) : undefined;
-  if (job) {
-    const [key, , run] = job;
-    try {
-      done.ai = await run();
-      await setStatus(db, userId, "ai", { ok: true, info: { failed: { ...failed, [key]: 0 } } });
-    } catch (e) {
-      done.ai = `${key} error: ${(e as Error).message}`;
-      await setStatus(db, userId, "ai", { error: done.ai, info: { failed: { ...failed, [key]: Date.now() } } });
-    }
-  }
 
   // Recurring bills roll forward once their date has passed.
   const { data: pastBills } = await db.from("bills").select("id, next_due, every").eq("user_id", userId).lt("next_due", day).neq("every", "once");
@@ -128,9 +88,11 @@ export async function POST(req: Request) {
 
   // Quit support: celebrate milestones as they pass, and warn before your usual craving hour.
   const { data: quits } = await db.from("quits").select("id, name, started_at").eq("user_id", userId).eq("active", true);
-  const lastBeat = lastOk("heartbeat") || Date.now() - 30 * 60 * 1000;
+  // Each run checks (last run's now, this run's now], so a milestone passing mid-run is never missed.
+  const checkedAt = (status?.find((s) => s.source === "heartbeat")?.info as { quit_checked_at?: number } | null)?.quit_checked_at;
+  const lastBeat = checkedAt || lastOk("heartbeat") || now - 30 * 60 * 1000;
   for (const q of quits ?? []) {
-    const hrsNow = (Date.now() - Date.parse(q.started_at)) / HOUR;
+    const hrsNow = (now - Date.parse(q.started_at)) / HOUR;
     const hrsThen = (lastBeat - Date.parse(q.started_at)) / HOUR;
     const passed = MILESTONES.filter((m) => m.hours > hrsThen && m.hours <= hrsNow && m.hours >= 8).pop();
     if (passed) await sendPush(db, userId, { title: `🚭 ${passed.title} ${q.name}-free`, body: passed.body, url: "/quit" });
@@ -183,10 +145,12 @@ export async function POST(req: Request) {
   // 9:30pm nudge if the night check-in hasn't happened.
   if (hour >= 21 && lastDay("nudge") !== day) {
     const { data: night } = await db.from("checkins").select("day").eq("user_id", userId).eq("day", day).eq("kind", "night").maybeSingle();
-    if (!night && new Date().getMinutes() >= (hour === 21 ? 30 : 0)) {
+    // Marked done only once it's sent or the check-in exists, so the 21:00 run leaves it for 21:30.
+    if (night) await setStatus(db, userId, "nudge", { ok: true });
+    else if (new Date().getMinutes() >= (hour === 21 ? 30 : 0)) {
       await sendPush(db, userId, { title: "🌙 2 minutes before bed", body: "Log your night check-in. Your coach is only as good as what you tell it.", url: "/checkin" });
+      await setStatus(db, userId, "nudge", { ok: true });
     }
-    if (!night || hour > 21) await setStatus(db, userId, "nudge", { ok: true });
   }
 
   // Housekeeping: keep 30 days of email and past events.
@@ -194,7 +158,77 @@ export async function POST(req: Request) {
   await db.from("inbox").delete().eq("user_id", userId).lt("received_at", monthAgo);
   await db.from("events").delete().eq("user_id", userId).lt("starts_at", monthAgo);
 
-  await setStatus(db, userId, "heartbeat", { ok: true, info: done });
+  await setStatus(db, userId, "heartbeat", { ok: true, info: { ...done, quit_checked_at: now } });
+
+  // One AI job per run so each fits in the time limit, last so a slow job never stops the work above. Runs the first job that is due:
+  // 6am think ahead → 7am brief → today's plan → year → week → money → 6pm brief → 8pm tomorrow's plan.
+  const tomorrow = addDays(day, 1);
+  const week = weekStart(day);
+  const { data: planRows } = await db.from("plans").select("kind, period, created_at").eq("user_id", userId).gte("created_at", new Date(Date.now() - 40 * 24 * HOUR).toISOString());
+  const hasPlan = (kind: string, period: string) => (planRows ?? []).some((p) => p.kind === kind && p.period === period);
+  const { data: briefRows } = await db.from("briefs").select("slot").eq("user_id", userId).eq("day", day);
+  const hasBrief = (s: string) => (briefRows ?? []).some((b) => b.slot === s);
+  const isSunday = new Date(`${day}T12:00:00Z`).getUTCDay() === 0;
+
+  const plan = (kind: PlanKind, period: string, push?: (c: Record<string, unknown>) => { title: string; body: string; url?: string }) => async () => {
+    const content = await makePlan(db, kind, period, userId);
+    if (push) await sendPush(db, userId, push(content));
+    return `${kind} plan for ${period}`;
+  };
+  // A job that failed waits 2 hours before retrying, so one bad answer never blocks the rest.
+  const failed = ((status?.find((s) => s.source === "ai")?.info as { failed?: Record<string, number> } | null)?.failed ?? {}) as Record<string, number>;
+  const { count: unfiled } = await db.from("notes").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("processed", false);
+  const jobs: [string, boolean, () => Promise<string>][] = [
+    ["file-thoughts", (unfiled ?? 0) > 0, async () => `${(await fileThoughts(db, { userId })).length} thoughts filed`],
+    ["think", hour >= 6 && lastDay("think") !== day, async () => {
+      const found = await think(db, userId);
+      await setStatus(db, userId, "think", { ok: true, info: { insights: found.length } });
+      const top = [...found].sort((a, b) => a.priority - b.priority)[0];
+      if (top?.priority === 1) await sendPush(db, userId, { title: `💡 ${scrub(top.title) || "Something needs you today"}`, body: scrub(top.body).slice(0, 160) });
+      return `${found.length} insights`;
+    }],
+    ["brief-am", slot === "am" && hour >= 7 && !hasBrief("am"), async () => {
+      const brief = await makeBrief(db, userId);
+      await sendPush(db, userId, { title: "☀️ Your morning brief", body: scrub(String(brief.headline)) });
+      return "am brief";
+    }],
+    ["fuel", hour >= 6 && !hasPlan("fuel", day), async () => {
+      const f = await makeFuel(db, day, userId);
+      return `fuel: ${f.theme}`;
+    }],
+    ["day", hour >= 6 && hour < 20 && !hasPlan("day", day), plan("day", day)],
+    ["year", hour >= 6 && !(planRows ?? []).some((p) => p.kind === "year"), plan("year", day.slice(0, 7))],
+    ["week", hour >= 6 && !hasPlan("week", week), plan("week", week)],
+    ["next-week", isSunday && hour >= 19 && !hasPlan("week", addDays(week, 7)), plan("week", addDays(week, 7))],
+    ["money", hour >= 6 && !hasPlan("money", week), plan("money", week)],
+    ["brief-pm", slot === "pm" && hour >= 18 && !hasBrief("pm"), async () => {
+      const brief = await makeBrief(db, userId);
+      await sendPush(db, userId, { title: "🌙 Evening check", body: scrub(String(brief.headline)) });
+      return "pm brief";
+    }],
+    ["tomorrow", hour >= 20 && !hasPlan("day", tomorrow), plan("day", tomorrow, (c) => ({ title: "📋 Tomorrow is planned", body: scrub(String(c.headline ?? "")) || "Your non-negotiables are ready.", url: "/plan" }))],
+  ];
+  // Stop by 55s (maxDuration is 60); with under 15s left, wait for the next run.
+  const deadline = now + 55 * 1000;
+  const job = aiConfigured() && deadline - Date.now() > 15 * 1000 ? jobs.find(([key, due]) => due && Date.now() - (failed[key] ?? 0) > 2 * HOUR) : undefined;
+  if (job) {
+    const [key, , run] = job;
+    // Counted as failed before it starts, so a run killed at the time limit still waits 2 hours.
+    await setStatus(db, userId, "ai", { info: { failed: { ...failed, [key]: Date.now() } } });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const limit = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("timed out")), deadline - Date.now());
+    });
+    try {
+      done.ai = await Promise.race([run(), limit]);
+      await setStatus(db, userId, "ai", { ok: true, info: { failed: { ...failed, [key]: 0 } } });
+    } catch (e) {
+      done.ai = `${key} error: ${(e as Error).message}`;
+      await setStatus(db, userId, "ai", { error: done.ai, info: { failed: { ...failed, [key]: Date.now() } } });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   return Response.json({ ok: true, ...done });
 }
 

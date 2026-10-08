@@ -6,7 +6,8 @@ import { ACTION_LABEL, applyAction } from "@/lib/actions";
 import { callApi, errorText } from "@/lib/api";
 import { useAssistantName } from "@/lib/useAssistant";
 import { timeAgo } from "@/lib/time";
-import type { Insight } from "@/lib/think";
+import type { Insight, InsightAction } from "@/lib/think";
+import { gbp } from "@/lib/money";
 import Cited from "./Cited";
 
 const KIND: Record<string, { icon: string; tint: string }> = {
@@ -98,6 +99,11 @@ export default function InsightsCard() {
                       })}
                     </p>
                   )}
+                  {i.action && (
+                    <p className="mt-2 max-h-24 overflow-y-auto whitespace-pre-line break-words rounded-lg bg-white/70 px-2 py-1 text-xs text-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-300">
+                      {preview(i.action)}
+                    </p>
+                  )}
                   <div className="mt-2 flex items-center gap-2">
                     {i.action && (
                       <button disabled={busy === i.id} onClick={() => act(i, true)} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-medium text-white transition active:scale-95">
@@ -118,6 +124,26 @@ export default function InsightsCard() {
       {msg && <p className="text-sm text-zinc-500">{msg}</p>}
     </div>
   );
+}
+
+// Exactly what the one-tap button will add, so nothing hidden gets saved.
+function preview(a: InsightAction): string {
+  const day = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  switch (a.type) {
+    case "note":
+      return `Saves note: "${a.body}"`;
+    case "bill":
+      return `Tracks ${a.name}: ${gbp(a.amount)} due ${day(a.next_due)}${a.every && a.every !== "once" ? `, every ${a.every}` : ", one-off"}`;
+    case "task":
+      return `Adds task: ${a.title}${a.day ? ` on ${day(a.day)}` : " (Someday)"}${a.must ? " · MUST" : ""}`;
+    case "habit":
+      return `Adds habit to ${a.kind === "bad" ? "break" : "build"}: ${a.name}`;
+    case "goal": {
+      const unit = a.unit ?? "%";
+      const target = unit === "£" ? `£${a.target ?? 100}` : `${a.target ?? 100}${unit.length > 1 ? ` ${unit}` : unit}`;
+      return `Adds goal: ${a.title} → ${target}${a.deadline ? ` by ${day(a.deadline)}` : ""}`;
+    }
+  }
 }
 
 // Links come from web search, so only open real web pages (never javascript: or a malformed URL).
