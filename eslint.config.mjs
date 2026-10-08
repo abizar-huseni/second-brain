@@ -18,6 +18,7 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "integrations/**", // Google Apps Script, runs on Google's servers
     ],
   },
 ];

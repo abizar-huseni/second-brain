@@ -46,7 +46,7 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 
 ## Setup
 
-1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`, then `supabase/003_health.sql`, then `supabase/004_bank.sql`, then `supabase/005_live_health.sql`.
+1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`, then `supabase/003_health.sql`, then `supabase/004_bank.sql`, then `supabase/005_live_health.sql`, then `supabase/006_live.sql`.
 2. **Keys**: copy `.env.example` to `.env.local` and paste your Project URL and anon key from Project Settings > API. Never commit `.env.local`.
 3. **Run locally**:
    ```bash
@@ -67,13 +67,20 @@ UK banks don't offer free open banking access to individuals, so this uses [Lunc
 3. In Vercel, add `LUNCHFLOW_API_KEY`, then redeploy.
 4. In the app: Money → Banks → Sync now.
 
+## Live mode (free): works while your devices are off
+
+- **Heartbeat:** `supabase/006_live.sql` schedules Supabase's built-in `pg_cron` to call `/api/cron` every 30 minutes. It syncs banks (every 2 hours, if `LUNCHFLOW_API_KEY` is set) and writes the morning (7am) and evening (6pm) coach brief.
+- **Gmail + Calendar:** paste [`integrations/google-apps-script.js`](integrations/google-apps-script.js) into script.google.com and follow the 4 steps at the top. Google runs it every 10 minutes and sends new inbox emails (sender, subject, first 200 characters; promotions skipped) and the next 7 days of events.
+- **About me:** the Me page holds your situation (visa rules, deadlines, money, health). The coach treats it as hard limits.
+- All three use your sync token from the Me page, and status dots on Today show when each last worked.
+
 ## Live watch sync (optional, free)
 
 Samsung Health has no web API, but it writes to Android's Health Connect. The open-source [HC Webhook](https://github.com/mcnaveen/health-connect-webhook) app reads Health Connect and posts it here. The Play Store version is paid; the same app is free as `app-foss-release.apk` on its [GitHub releases](https://github.com/mcnaveen/health-connect-webhook/releases).
 
 1. Run `supabase/005_live_health.sql`. Make sure `SUPABASE_SERVICE_ROLE_KEY` is set in Vercel (server-only, never `NEXT_PUBLIC_`).
 2. Samsung Health → Settings → Health Connect: allow it to share steps, sleep, heart rate and exercise.
-3. In the app: Health → Create my sync token.
+3. In the app: Me → Create my sync token.
 4. In HC Webhook: grant Health Connect access, add a webhook with the URL and the `x-sync-token` header shown on the Health page, pick an interval.
 
 Raw readings land in `health_samples`; each push recalculates the affected days in `health_days`.
@@ -86,7 +93,8 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 - [ ] **v2 part 2b**: Google Keep import (Takeout), payslip PDF upload
 - [x] **v3 part 1**: live UK bank sync (Lunch Flow), live Galaxy Watch sync (Health Connect + HC Webhook)
 - [x] **v3 part 2**: AI coach (daily brief + ask anything) on a free model, emoji check-ins, redesigned Today
-- [ ] **v3 part 3**: always-on Jarvis (scheduled job search + CV matching, weekly review), Gmail summary
+- [x] **v3 part 3**: live mode: server heartbeat, Gmail + Calendar feed, "About me" for the coach
+- [ ] **v3 part 4**: notes from Obsidian, morning push notification, Sunday review
 - [ ] **v4**: weekly review, correlations (sleep vs mood vs productivity) in Python
 
 ## Build log
@@ -99,3 +107,4 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 | 2026-10-08 | Bank statement import + live UK bank sync via Lunch Flow |
 | 2026-10-08 | Live Galaxy Watch sync through Health Connect |
 | 2026-10-08 | Free AI coach (Gemini), emoji mood + energy, animated Today page |
+| 2026-10-08 | Live mode: heartbeat, Gmail + Calendar feed, Me page |

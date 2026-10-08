@@ -1,20 +1,13 @@
-import { createClient } from "@supabase/supabase-js";
 import { daysFromSamples, samplesFromPayload, TZ } from "@/lib/liveHealth";
+import { fromSyncToken, setStatus } from "@/lib/serviceDb";
 
 // Receives pushes from the HC Webhook Android app.
-// Header: x-sync-token: <your token from the Health page>
+// Header: x-sync-token: <your token from the Me page>
 // Needs SUPABASE_SERVICE_ROLE_KEY in Vercel (server-only), because the phone has no login session.
 export async function POST(req: Request) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !service) return Response.json({ error: "Server missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
-  const db = createClient(url, service, { auth: { persistSession: false } });
-
-  const token = req.headers.get("x-sync-token") ?? new URL(req.url).searchParams.get("token");
-  if (!token) return Response.json({ error: "Missing x-sync-token" }, { status: 401 });
-  const { data: owner } = await db.from("sync_tokens").select("user_id").eq("token", token).maybeSingle();
-  if (!owner) return Response.json({ error: "Invalid token" }, { status: 401 });
-  const user_id = owner.user_id as string;
+  const auth = await fromSyncToken(req);
+  if ("error" in auth) return auth.error;
+  const { db, userId: user_id } = auth;
 
   let payload: Record<string, unknown>;
   try {
@@ -50,5 +43,6 @@ export async function POST(req: Request) {
     const { error: e } = await db.from("health_days").upsert({ ...p, user_id, updated_at: new Date().toISOString() }, { onConflict: "user_id,day" });
     if (e) return Response.json({ error: e.message }, { status: 500 });
   }
+  await setStatus(db, user_id, "watch", { ok: true, info: { samples: samples.length } });
   return Response.json({ ok: true, samples: samples.length, days: patches.map((p) => p.day) });
 }

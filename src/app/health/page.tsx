@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { daysAgo } from "@/lib/dates";
 import { buildHealthDays, type HealthDay } from "@/lib/samsung";
 import Bars from "@/components/Bars";
-import LiveSync from "@/components/LiveSync";
+import Link from "next/link";
 
 const hm = (mins: number) => `${Math.floor(mins / 60)}h ${String(Math.round(mins % 60)).padStart(2, "0")}m`;
 const avg = (xs: (number | null)[]) => {
@@ -58,7 +58,10 @@ export default function HealthPage() {
 
   return (
     <div className="space-y-4">
-      <LiveSync onRefresh={load} />
+      <Link href="/me" className="card card-link flex items-center justify-between">
+        <span className="text-sm">⌚ Live watch sync settings</span>
+        <span className="text-xs text-zinc-500">Me →</span>
+      </Link>
 
       <div className="card space-y-2">
         <p className="label">Import history from Samsung Health</p>

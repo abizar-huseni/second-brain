@@ -7,8 +7,8 @@ import type { Brief } from "@/lib/coach";
 
 const AREA_ICON: Record<string, string> = { growth: "🌱", fitness: "💪", mind: "🧠", money: "💷", work: "💼" };
 
-// One brief per morning and one per evening, cached on this device to save the free AI quota.
-const cacheKey = () => `coach:${toDay()}:${new Date().getHours() < 15 ? "am" : "pm"}`;
+// One brief per morning and one per evening, saved in the database (the heartbeat usually writes it before you wake up).
+const slot = () => (new Date().getHours() < 15 ? "am" : "pm");
 
 async function callCoach(body: object) {
   const { data } = await supabase.auth.getSession();
@@ -33,19 +33,14 @@ export default function CoachCard() {
 
   const load = useCallback(async (fresh = false) => {
     if (!fresh) {
-      try {
-        const cached = localStorage.getItem(cacheKey());
-        if (cached) return setBrief(JSON.parse(cached));
-      } catch {}
+      const { data } = await supabase.from("briefs").select("content").eq("day", toDay()).eq("slot", slot()).maybeSingle();
+      if (data?.content) return setBrief(data.content as Brief);
     }
     setLoading(true);
     setError("");
     try {
       const { brief } = await callCoach({ mode: "brief" });
       setBrief(brief);
-      try {
-        localStorage.setItem(cacheKey(), JSON.stringify(brief));
-      } catch {}
     } catch (e) {
       setError((e as Error).message);
     }

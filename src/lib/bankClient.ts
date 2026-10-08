@@ -1,7 +1,7 @@
 "use client";
 // Browser side of bank sync: asks our server route for bank data, saves it under your login.
 import { supabase } from "./supabase";
-import { categorize } from "./categorize";
+import { bankRows } from "./bankRows";
 import { daysAgo } from "./dates";
 
 export type BankAccount = { id: number; name: string; bank: string; logo: string | null; status: string; balance: number | null };
@@ -30,20 +30,7 @@ export async function syncBanks(): Promise<{ accounts: BankAccount[]; added: num
   const json = (await res.json()) as SyncResponse;
   if (!res.ok) throw new Error(json.error ?? "Sync failed");
 
-  const rows = json.accounts.flatMap((a) =>
-    a.transactions
-      .filter((t) => t.day && t.amount)
-      .map((t) => ({
-        day: t.day,
-        kind: t.amount > 0 ? "income" : "expense",
-        amount: Math.abs(t.amount),
-        category: categorize(t.description, t.amount > 0),
-        description: t.description,
-        account: `${a.bank} ${a.name}`,
-        source: "bank",
-        external_id: `lf|${a.id}|${t.id}`,
-      })),
-  );
+  const rows = bankRows(json.accounts);
 
   const before = await supabase.from("transactions").select("id", { count: "exact", head: true });
   for (let i = 0; i < rows.length; i += 200) {

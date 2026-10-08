@@ -10,22 +10,41 @@ import Progress from "@/components/Progress";
 import CoachCard from "@/components/CoachCard";
 import type { Checkin, Goal, Habit, HabitLog } from "@/lib/types";
 import type { HealthDay } from "@/lib/samsung";
+import { timeAgo } from "@/lib/time";
 
-type Data = { goals: Goal[]; habits: Habit[]; logs: HabitLog[]; checkins: Checkin[]; health: HealthDay | null };
+type Mail = { external_id: string; from_name: string; subject: string; category: string; unread: boolean; received_at: string };
+type CalEvent = { external_id: string; title: string; starts_at: string; all_day: boolean; location: string | null };
+type Sync = { source: string; last_ok: string | null; last_error: string | null };
+type Data = { goals: Goal[]; habits: Habit[]; logs: HabitLog[]; checkins: Checkin[]; health: HealthDay | null; mail: Mail[]; events: CalEvent[]; sync: Sync[] };
+
+const MAIL_ICON: Record<string, string> = { money: "💷", uni: "🎓", jobs: "💼", other: "✉️" };
+const MAIL_RANK: Record<string, number> = { money: 0, uni: 1, jobs: 2, other: 3 };
 
 export default function Today() {
   const [data, setData] = useState<Data | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [g, h, l, c, hd] = await Promise.all([
+      const [g, h, l, c, hd, ib, ev, st] = await Promise.all([
         supabase.from("goals").select("*"),
         supabase.from("habits").select("*").eq("archived", false).order("created_at"),
         supabase.from("habit_logs").select("habit_id, day").eq("day", toDay()),
         supabase.from("checkins").select("*").gte("day", daysAgo(13)).order("day"),
         supabase.from("health_days").select("*").order("day", { ascending: false }).limit(1),
+        supabase.from("inbox").select("*").eq("unread", true).gte("received_at", new Date(Date.now() - 2 * 86400000).toISOString()).order("received_at", { ascending: false }).limit(30),
+        supabase.from("events").select("*").gte("starts_at", new Date(Date.now() - 3600000).toISOString()).lte("starts_at", new Date(Date.now() + 2 * 86400000).toISOString()).order("starts_at").limit(4),
+        supabase.from("sync_status").select("source, last_ok, last_error"),
       ]);
-      setData({ goals: g.data ?? [], habits: h.data ?? [], logs: l.data ?? [], checkins: c.data ?? [], health: hd.data?.[0] ?? null });
+      setData({
+        goals: g.data ?? [],
+        habits: h.data ?? [],
+        logs: l.data ?? [],
+        checkins: c.data ?? [],
+        health: hd.data?.[0] ?? null,
+        mail: ib.data ?? [],
+        events: ev.data ?? [],
+        sync: st.data ?? [],
+      });
     })();
   }, []);
 
@@ -71,6 +90,12 @@ export default function Today() {
   const hour = now.getHours();
   const greeting = hour < 5 ? "Still up?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const sleep = data.health?.sleep_min;
+  const mail = [...data.mail].sort((a, b) => MAIL_RANK[a.category] - MAIL_RANK[b.category]).slice(0, 3);
+  const live = [
+    { source: "watch", icon: "⌚" },
+    { source: "google", icon: "📧" },
+    { source: "bank", icon: "🏦" },
+  ].map((x) => ({ ...x, s: data.sync.find((y) => y.source === x.source) }));
 
   return (
     <div className="stagger space-y-4">
@@ -79,6 +104,14 @@ export default function Today() {
           <p className="text-sm text-white/70">{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</p>
           <h1 className="text-2xl font-semibold">{greeting}</h1>
           <p className="mt-1 text-sm text-white/80">{score === 100 ? "Perfect day. Earned it." : score >= 50 ? "Good momentum. Finish strong." : "Day's still yours. Start small."}</p>
+          <Link href="/me" className="mt-2 flex gap-2 text-xs text-white/70">
+            {live.map((x) => (
+              <span key={x.source} className="flex items-center gap-1" title={x.s?.last_error ?? `Last sync ${timeAgo(x.s?.last_ok)}`}>
+                {x.icon}
+                <span className={`h-1.5 w-1.5 rounded-full ${x.s?.last_error ? "bg-amber-400" : x.s?.last_ok ? "bg-emerald-400" : "bg-white/30"}`} />
+              </span>
+            ))}
+          </Link>
         </div>
         <Ring value={score} />
       </div>
@@ -89,6 +122,37 @@ export default function Today() {
       </div>
 
       <CoachCard />
+
+      {(data.events.length > 0 || mail.length > 0) && (
+        <div className="card space-y-3">
+          {data.events.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="label">📅 Next up</p>
+              {data.events.map((e) => (
+                <div key={e.external_id} className="flex gap-3 text-sm">
+                  <span className="w-20 shrink-0 tabular-nums text-zinc-500">
+                    {new Date(e.starts_at).toLocaleString("en-GB", e.all_day ? { weekday: "short" } : { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <span className="truncate">{e.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {mail.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="label">📬 Unread ({data.mail.length})</p>
+              {mail.map((m) => (
+                <div key={m.external_id} className="flex gap-2 text-sm">
+                  <span>{MAIL_ICON[m.category] ?? "✉️"}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="font-medium">{m.from_name}</span> <span className="text-zinc-500">{m.subject}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {morning?.priorities && (
         <div className="card">

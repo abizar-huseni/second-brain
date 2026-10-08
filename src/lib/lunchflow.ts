@@ -13,6 +13,48 @@ export async function lf<T>(path: string): Promise<T> {
   return JSON.parse(text) as T;
 }
 
+type Account = { id: number; name: string; institution_name: string; institution_logo?: string; currency: string; status: string };
+type Tx = { id: string; amount: number; currency: string; date: string; merchant?: string; description?: string; isPending?: boolean };
+
+export type BankData = {
+  id: number;
+  name: string;
+  bank: string;
+  logo: string | null;
+  status: string;
+  balance: number | null;
+  transactions: { id: string; day: string; amount: number; description: string }[];
+};
+
+// Every connected account with its balance and booked transactions since `from` (YYYY-MM-DD).
+export async function fetchBankData(from: string): Promise<BankData[]> {
+  const { accounts } = await lf<{ accounts: Account[] }>("/accounts");
+  return Promise.all(
+    accounts.map(async (a) => {
+      const [bal, tx] = await Promise.all([
+        lf<{ balance: { amount: number } }>(`/accounts/${a.id}/balance`).catch(() => null),
+        lf<{ transactions: Tx[] }>(`/accounts/${a.id}/transactions?from=${from}`),
+      ]);
+      return {
+        id: a.id,
+        name: a.name,
+        bank: a.institution_name,
+        logo: a.institution_logo ?? null,
+        status: a.status,
+        balance: bal?.balance.amount ?? null,
+        transactions: tx.transactions
+          .filter((t) => !t.isPending)
+          .map((t) => ({
+            id: t.id,
+            day: t.date,
+            amount: Number(t.amount), // negative = money out
+            description: [t.merchant, t.description].filter(Boolean).join(" · ") || "Bank transaction",
+          })),
+      };
+    }),
+  );
+}
+
 // Only signed-in users of this app may trigger a sync.
 export async function requireUser(req: Request) {
   const token = req.headers.get("authorization")?.replace(/^Bearer /, "");

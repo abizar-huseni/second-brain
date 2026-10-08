@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 
 const LINKS = [
   { href: "/", label: "Today", icon: "🏠" },
@@ -12,6 +11,7 @@ const LINKS = [
   { href: "/health", label: "Health", icon: "💪" },
   { href: "/notes", label: "Notes", icon: "🧠" },
   { href: "/money", label: "Money", icon: "💷" },
+  { href: "/me", label: "Me", icon: "👤" },
 ];
 
 export default function Nav() {
@@ -35,9 +35,6 @@ export default function Nav() {
             </Link>
           );
         })}
-        <button onClick={() => supabase.auth.signOut()} className="hidden text-sm text-zinc-500 sm:ml-auto sm:inline">
-          Sign out
-        </button>
       </div>
     </nav>
   );
