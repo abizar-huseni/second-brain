@@ -16,7 +16,7 @@ const MODES = [
 ] as const;
 type Mode = (typeof MODES)[number]["key"];
 
-// The + button on every page: catch a thought (typed or spoken), a task or an expense in seconds.
+// The capture sheet behind the + button: catch a thought (typed or spoken), a task or an expense in seconds.
 // Also opens straight into "thought" from the home-screen shortcut (?add=thought).
 export default function QuickAdd() {
   const [open, setOpen] = useState(false);
@@ -37,6 +37,17 @@ export default function QuickAdd() {
     if (fin) setText((t) => `${t}${t && !t.endsWith(" ") ? " " : ""}${fin.trim()}`);
     setInterim(int);
   });
+
+  // The nav's + button, N on a keyboard, or any component can open this.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const m = (e as CustomEvent).detail;
+      if (m === "thought" || m === "task" || m === "spent") setMode(m);
+      setOpen(true);
+    };
+    window.addEventListener("quickadd", on);
+    return () => window.removeEventListener("quickadd", on);
+  }, []);
 
   useEffect(() => {
     const p = new URLSearchParams(location.search).get("add");
@@ -87,16 +98,9 @@ export default function QuickAdd() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Quick add"
-        className="fixed bottom-20 right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-3xl text-white shadow-lg shadow-emerald-500/30 transition active:scale-90 sm:bottom-6"
-      >
-        +
-      </button>
       {open && (
-        <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center" onClick={close}>
-          <div className="sheet w-full max-w-md space-y-3 rounded-t-3xl bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-3xl dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
+        <div className="fade-in fixed inset-0 z-30 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center" onClick={close} onKeyDown={(e) => e.key === "Escape" && close()}>
+          <div className="sheet w-full max-w-md space-y-3 rounded-t-[32px] border border-[var(--line)] bg-[var(--surface)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-[32px]" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto h-1 w-10 rounded-full bg-zinc-300 sm:hidden dark:bg-zinc-700" />
             <div className="flex gap-1 rounded-2xl bg-zinc-100 p-1 dark:bg-zinc-800">
               {MODES.map((m) => (
@@ -155,7 +159,7 @@ export default function QuickAdd() {
                   ))}
                 </div>
               )}
-              <button className="btn w-full py-3">{done || "Save"}</button>
+              <button className="btn btn-accent w-full py-3">{done || "Save"}</button>
               {reply && <p className="celebrate rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">🧠 {reply}</p>}
             </form>
           </div>
