@@ -87,8 +87,16 @@ export default function NotesPage() {
 
       {view === "map" && (
         <div className="card">
-          <MindMap notes={notes} selected={tag} onSelect={setTag} />
-          <p className="mt-2 text-center text-xs text-zinc-500">Tap a branch to see its notes.</p>
+          <MindMap
+            notes={notes}
+            selected={tag}
+            onSelect={setTag}
+            onNote={(id) => {
+              const el = document.getElementById(`note-${id}`);
+              el?.scrollIntoView({ behavior: "smooth", block: "center" });
+              el?.animate([{ boxShadow: "0 0 0 2px var(--accent)" }, { boxShadow: "0 0 0 2px transparent" }], { duration: 1600, delay: 300 });
+            }}
+          />
         </div>
       )}
 
@@ -103,7 +111,7 @@ export default function NotesPage() {
 
       <ul className="space-y-2">
         {shown.map((n) => (
-          <li key={n.id} className="card">
+          <li key={n.id} id={`note-${n.id}`} className="card scroll-mt-20">
             {(n.title || (n.kind && NOTE_KIND[n.kind])) && (
               <p className="mb-1 flex items-center gap-2 text-xs">
                 {n.kind && NOTE_KIND[n.kind] && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-800 dark:bg-violet-500/20 dark:text-violet-300">{NOTE_KIND[n.kind]}</span>}

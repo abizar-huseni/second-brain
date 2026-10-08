@@ -29,6 +29,16 @@ export const scrub = (s: string | null | undefined) =>
         .replace(/[\u00ad\u200b-\u200f\u2060-\u2064\ufeff]/g, "")
         .replace(/[<\u2039\u27e8\u3008]\s*\/?\s*untrusted[^>\u203a\u27e9\u3009]*[>\u203a\u27e9\u3009]?/gi, "")
     : "";
+// AI text can quote email, calendar and web text written by anyone, so what's shown to you as a push
+// or a one-line explanation never carries their links, addresses or phone numbers.
+export const noContacts = (s: string) =>
+  s
+    .replace(/\S+@\S+\.\S+/g, "")
+    .replace(/(https?:\/\/|www\.)\S+/gi, "")
+    .replace(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}\b(\/\S*)?/gi, "")
+    .replace(/\+?\(?\d[\d\s().-]{6,}\d/g, (m) => (m.replace(/\D/g, "").length >= 9 ? "" : m))
+    .replace(/\s{2,}/g, " ")
+    .trim();
 const pct = (a: number, b: number) => (b > 0 ? Math.round((Math.min(a, b) / b) * 100) : 0);
 
 export type Brief = {

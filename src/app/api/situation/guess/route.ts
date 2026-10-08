@@ -1,5 +1,5 @@
 import { aiConfigured, chat, parseJson } from "@/lib/ai";
-import { scrub } from "@/lib/coach";
+import { noContacts, scrub } from "@/lib/coach";
 import { lday } from "@/lib/ldates";
 import { missingSource, ownNote } from "@/lib/notes";
 import { addMonths, isDay } from "@/lib/situation";
@@ -47,6 +47,6 @@ export async function POST(req: Request) {
   const dissertation_due = isDay(g.dissertation_due) ? g.dissertation_due : course_end;
   // For a course of 12 months or more, a Student visa usually runs about 4 months past the course end. A guess to check.
   const visa_expiry = isDay(g.visa_expiry) ? g.visa_expiry : course_end ? addMonths(course_end, 4) : null;
-  const notes_why = [g.why && typeof g.why === "string" ? g.why.slice(0, 200) : "", !isDay(g.visa_expiry) && visa_expiry ? "Visa end guessed as 4 months after the course; check your eVisa." : ""].filter(Boolean).join(" ");
+  const notes_why = [typeof g.why === "string" ? noContacts(scrub(g.why)).slice(0, 200) : "", !isDay(g.visa_expiry) && visa_expiry ? "Visa end guessed as 4 months after the course; check your eVisa." : ""].filter(Boolean).join(" ");
   return Response.json({ course_end, dissertation_due, visa_expiry, grad_plan: ["apply", "unsure", "no"].includes(String(g.grad_plan)) ? g.grad_plan : "apply", why: notes_why });
 }

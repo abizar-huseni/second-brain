@@ -1,6 +1,6 @@
 import { aiConfigured } from "@/lib/ai";
 import { bankRows } from "@/lib/bankRows";
-import { makeBrief, slotNow } from "@/lib/coach";
+import { makeBrief, noContacts as scrub, slotNow } from "@/lib/coach";
 import { makeFuel } from "@/lib/fuel";
 import { fmtClock, fmtDur, sleepReport } from "@/lib/sleep";
 import { suggestDeviceActions } from "@/lib/deviceSuggest";
@@ -18,16 +18,6 @@ import { think } from "@/lib/think";
 export const maxDuration = 60;
 
 const HOUR = 3600 * 1000;
-
-// AI text can quote email, calendar and web text written by anyone, so a push never carries their links, addresses or phone numbers.
-const scrub = (s: string) =>
-  s
-    .replace(/\S+@\S+\.\S+/g, "")
-    .replace(/(https?:\/\/|www\.)\S+/gi, "")
-    .replace(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}\b(\/\S*)?/gi, "")
-    .replace(/\+?\(?\d[\d\s().-]{6,}\d/g, (m) => (m.replace(/\D/g, "").length >= 9 ? "" : m))
-    .replace(/\s{2,}/g, " ")
-    .trim();
 
 // Heartbeat, called every 30 minutes by Supabase (see supabase/010_source_keys.sql), so the dashboard
 // keeps itself up to date while your phone and laptop are off.
@@ -177,6 +167,29 @@ export async function POST(req: Request) {
 
   // A gentle note (never a push) when mood stays low for several check-ins.
   await lowMoodCheck(db, userId, day).catch((e) => console.error("low mood:", (e as Error).message));
+
+  // Morning check-in nudge: 20 minutes after the watch says you woke up, or 9am if it hasn't synced a wake-up.
+  if (hour >= 5 && hour < 12 && lastDay("morning-nudge") !== day) {
+    const { data: morning } = await db.from("checkins").select("day").eq("user_id", userId).eq("day", day).eq("kind", "morning").maybeSingle();
+    if (morning) await setStatus(db, userId, "morning-nudge", { ok: true });
+    else {
+      const { data: woke } = await db
+        .from("health_samples")
+        .select("end_time")
+        .eq("user_id", userId)
+        .in("type", ["sleep", "sleep_manual"])
+        .gte("end_time", new Date(Date.now() - 10 * HOUR).toISOString())
+        .order("end_time", { ascending: false })
+        .limit(1);
+      const wake = Date.parse(woke?.[0]?.end_time ?? "");
+      // Only a wake-up from this morning counts (London time 4am or later).
+      const wokeToday = Number.isFinite(wake) && new Date(wake).toLocaleDateString("en-CA", { timeZone: "Europe/London" }) === day && Number(new Date(wake).toLocaleString("en-GB", { timeZone: "Europe/London", hour: "numeric", hourCycle: "h23" })) >= 4;
+      if (wokeToday ? Date.now() - wake >= 20 * 60 * 1000 : hour >= 9) {
+        await sendPush(db, userId, { title: "☀️ Morning check-in", body: "10 seconds: mood, energy and your top 3 for today. It shapes everything I plan for you.", url: "/checkin" });
+        await setStatus(db, userId, "morning-nudge", { ok: true });
+      }
+    }
+  }
 
   // 9:30pm nudge if the night check-in hasn't happened.
   if (hour >= 21 && lastDay("nudge") !== day) {

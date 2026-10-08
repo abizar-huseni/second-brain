@@ -2,7 +2,7 @@
 // Brings Google Keep notes into Thoughts from a Google Takeout export, and explains sharing new ones.
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { isKeepJson, parseKeep, unzip, type KeepNote } from "@/lib/keep";
+import { MAX_FILE_BYTES, isKeepJson, parseKeep, unzip, type KeepNote } from "@/lib/keep";
 
 // Older notes are saved as already filed, so the assistant doesn't spend days sorting your whole history.
 const FILE_RECENT_DAYS = 60;
@@ -20,15 +20,16 @@ export default function KeepImport({ onDone }: { onDone: () => void }) {
       const texts: string[] = [];
       for (const f of Array.from(list)) {
         if (/\.zip$/i.test(f.name)) texts.push(...(await unzip(f, isKeepJson)).map((x) => x.text));
-        else if (/\.json$/i.test(f.name)) texts.push(await f.text());
+        else if (/\.json$/i.test(f.name) && f.size <= MAX_FILE_BYTES) texts.push(await f.text());
       }
-      const notes = texts.map(parseKeep).filter((n): n is KeepNote => !!n);
+      const { data: auth } = await supabase.auth.getUser();
+      const notes = texts.map((t) => parseKeep(t, auth.user?.email ?? "")).filter((n): n is KeepNote => !!n);
       if (!notes.length) throw new Error("No Keep notes found. Pick the Takeout .zip, or the .json files from its Keep folder.");
 
       const cutoff = Date.now() - FILE_RECENT_DAYS * 86400000;
       let added = 0;
       for (let i = 0; i < notes.length; i += 200) {
-        const rows = notes.slice(i, i + 200).map((n) => ({ ...n, source: "keep", processed: Date.parse(n.created_at) < cutoff }));
+        const rows = notes.slice(i, i + 200).map((n) => ({ ...n, processed: Date.parse(n.created_at) < cutoff }));
         // Same note again = skipped, so importing a newer export only adds what's new.
         const { data, error } = await supabase.from("notes").upsert(rows, { onConflict: "user_id,external_id", ignoreDuplicates: true }).select("id");
         if (error) throw new Error(/source|external_id/.test(error.message) ? "Your database is still getting an update. Try again after the next deploy." : error.message);
