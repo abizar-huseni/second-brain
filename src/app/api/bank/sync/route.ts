@@ -1,51 +1,41 @@
-import { eb, handle } from "@/lib/enablebanking";
+import { lf, requireUser } from "@/lib/lunchflow";
 
-type Amount = { amount: string; currency: string };
-type Tx = {
-  entry_reference?: string;
-  transaction_id?: string;
-  transaction_amount: Amount;
-  credit_debit_indicator: "CRDT" | "DBIT";
-  status?: string;
-  booking_date?: string;
-  value_date?: string;
-  transaction_date?: string;
-  creditor?: { name?: string };
-  debtor?: { name?: string };
-  remittance_information?: string[];
-};
+type Account = { id: number; name: string; institution_name: string; institution_logo?: string; currency: string; status: string };
+type Tx = { id: string; amount: number; currency: string; date: string; merchant?: string; description?: string; isPending?: boolean };
 
-// Pulls balances and transactions for one account since date_from.
-export const POST = handle(async (req) => {
-  const { uid, date_from } = (await req.json()) as { uid: string; date_from: string };
-  const balances = await eb<{ balances: { balance_amount: Amount; balance_type: string }[] }>(`/accounts/${uid}/balances`);
+// Returns every connected account with its balance and transactions since `from`.
+export async function POST(req: Request) {
+  try {
+    if (!(await requireUser(req))) return Response.json({ error: "Not signed in" }, { status: 401 });
+    const { from } = (await req.json()) as { from: string };
+    const { accounts } = await lf<{ accounts: Account[] }>("/accounts");
 
-  const transactions: Tx[] = [];
-  let key: string | undefined;
-  for (let page = 0; page < 20; page++) {
-    const q = new URLSearchParams({ date_from, ...(key ? { continuation_key: key } : {}) });
-    const data = await eb<{ transactions: Tx[]; continuation_key?: string }>(`/accounts/${uid}/transactions?${q}`);
-    transactions.push(...data.transactions);
-    key = data.continuation_key;
-    if (!key) break;
-  }
-
-  return {
-    balance: balances.balances[0]?.balance_amount ?? null,
-    transactions: transactions
-      .filter((t) => t.status !== "PDNG")
-      .map((t) => {
-        const income = t.credit_debit_indicator === "CRDT";
-        const counterparty = income ? t.debtor?.name : t.creditor?.name;
-        const description = [counterparty, ...(t.remittance_information ?? [])].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-        const day = t.booking_date ?? t.value_date ?? t.transaction_date ?? "";
+    const result = await Promise.all(
+      accounts.map(async (a) => {
+        const [bal, tx] = await Promise.all([
+          lf<{ balance: { amount: number } }>(`/accounts/${a.id}/balance`).catch(() => null),
+          lf<{ transactions: Tx[] }>(`/accounts/${a.id}/transactions?from=${from}`),
+        ]);
         return {
-          id: t.entry_reference ?? t.transaction_id ?? `${day}|${description}|${t.transaction_amount.amount}`,
-          day,
-          income,
-          amount: Math.abs(Number(t.transaction_amount.amount)),
-          description: description || "Bank transaction",
+          id: a.id,
+          name: a.name,
+          bank: a.institution_name,
+          logo: a.institution_logo ?? null,
+          status: a.status,
+          balance: bal?.balance.amount ?? null,
+          transactions: tx.transactions
+            .filter((t) => !t.isPending)
+            .map((t) => ({
+              id: t.id,
+              day: t.date,
+              amount: Number(t.amount), // negative = money out
+              description: [t.merchant, t.description].filter(Boolean).join(" · ") || "Bank transaction",
+            })),
         };
       }),
-  };
-});
+    );
+    return Response.json({ accounts: result });
+  } catch (e) {
+    return Response.json({ error: (e as Error).message }, { status: 500 });
+  }
+}

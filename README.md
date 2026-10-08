@@ -19,7 +19,7 @@ Built in public by [@abizar-huseni](https://github.com/abizar-huseni) while lear
 - **Mind map**: every #tag becomes a branch around you, sized by how often you think about it
 - **Health**: import your Samsung Health export (Galaxy Watch) and see steps, sleep, exercise, stress and heart rate over 7/30/90 days
 - **Bank statements**: drop in a Lloyds or HSBC CSV and every transaction is imported and auto-categorised (no duplicates on re-import)
-- **Live bank sync** (built, switched off): code for Enable Banking is in place, but Enable Banking doesn't serve UK banks since Brexit, so the Banks tab is hidden for now
+- **Live bank sync**: Lloyds and HSBC (and most UK banks) through [Lunch Flow](https://www.lunchflow.app)'s personal API; balances and transactions sync with one tap
 - **Money**: monthly in/out with category breakdown, UK payslips (tax, NI, pension, student loan, £/hour), and a debt tracker with payoff progress and monthly interest cost
 
 ## Stack
@@ -46,15 +46,14 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 5. **Deploy**: import this repo on [vercel.com](https://vercel.com), add the same two env variables, deploy.
 6. **Install on your phone**: open the Vercel URL in Chrome > menu > "Add to Home screen". On a laptop, click the install icon in the address bar.
 
-## Live bank sync (EU banks only for now)
+## Live bank sync (optional, ~£3/month)
 
-Enable Banking currently doesn't cover UK banks. For EU accounts:
+UK banks don't offer free open banking access to individuals, so this uses [Lunch Flow](https://www.lunchflow.app), which connects UK banks via GoCardless and gives you a personal API.
 
-1. Sign up at [enablebanking.com](https://enablebanking.com) and open the Control Panel.
-2. Register a **production** application. Redirect URL: `https://YOUR-APP.vercel.app/bank/callback`. Save the `.pem` private key it gives you.
-3. Click **Activate by linking accounts** and link your own bank accounts (free, personal, non-commercial use).
-4. In Vercel, add `ENABLE_BANKING_APP_ID` (the application ID) and `ENABLE_BANKING_PRIVATE_KEY` (the whole `.pem` file contents), then redeploy.
-5. In the app: Money → Banks → Connect a bank.
+1. Sign up at Lunch Flow, then **Connections → New Connection** for each bank.
+2. **Destinations → Add Destination → REST API**, copy the API key.
+3. In Vercel, add `LUNCHFLOW_API_KEY`, then redeploy.
+4. In the app: Money → Banks → Sync now.
 
 ## Roadmap
 
@@ -72,4 +71,4 @@ Enable Banking currently doesn't cover UK banks. For EU accounts:
 | 2026-10-08 | v1 scaffold: goals, habits, check-ins, dashboard, PWA |
 | 2026-10-08 | Deployed on Vercel + Supabase. v2 part 1: notes, mind map, money |
 | 2026-10-08 | Samsung Health import: 545 days of watch data in one click |
-| 2026-10-08 | Bank statement import + live UK bank sync via Enable Banking |
+| 2026-10-08 | Bank statement import + live UK bank sync via Lunch Flow |
