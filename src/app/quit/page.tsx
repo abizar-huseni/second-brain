@@ -18,7 +18,7 @@ export default function QuitPage() {
       supabase.from("quits").select("*").order("created_at"),
       supabase.from("cravings").select("*").gte("at", new Date(Date.now() - 30 * 86400000).toISOString()).order("at", { ascending: false }),
     ]);
-    if (q.error) setMsg("Run supabase/006_live.sql first.");
+    if (q.error) setMsg("The database is still setting up. It finishes on the next deploy.");
     setQuits(q.data ?? []);
     setCravings(c.data ?? []);
     setReady(true);

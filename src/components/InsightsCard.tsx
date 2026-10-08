@@ -87,11 +87,14 @@ export default function InsightsCard() {
                   <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">{i.body}</p>
                   {!!i.sources?.length && (
                     <p className="mt-1 flex flex-wrap gap-x-2 text-xs">
-                      {i.sources.map((s, n) => (
-                        <a key={n} href={s.url} target="_blank" rel="noreferrer" className="truncate text-zinc-500 underline">
-                          {new URL(s.url).hostname.replace(/^www\./, "")}
-                        </a>
-                      ))}
+                      {i.sources.map((s, n) => {
+                        const host = webHost(s.url);
+                        return host ? (
+                          <a key={n} href={s.url} target="_blank" rel="noreferrer noopener" className="truncate text-zinc-500 underline">
+                            {host}
+                          </a>
+                        ) : null;
+                      })}
                     </p>
                   )}
                   <div className="mt-2 flex items-center gap-2">
@@ -114,4 +117,14 @@ export default function InsightsCard() {
       {msg && <p className="text-sm text-zinc-500">{msg}</p>}
     </div>
   );
+}
+
+// Links come from web search, so only open real web pages (never javascript: or a malformed URL).
+function webHost(url: string) {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.hostname.replace(/^www\./, "") : null;
+  } catch {
+    return null;
+  }
 }

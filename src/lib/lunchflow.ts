@@ -1,7 +1,5 @@
 // Server-only: talks to Lunch Flow, which connects UK banks (Lloyds, HSBC, ...) through open banking.
 // Needs one Vercel env var: LUNCHFLOW_API_KEY (Lunch Flow → Destinations → REST API).
-import { createClient } from "@supabase/supabase-js";
-
 const API = "https://www.lunchflow.app/api/v1";
 
 export async function lf<T>(path: string): Promise<T> {
@@ -53,16 +51,4 @@ export async function fetchBankData(from: string): Promise<BankData[]> {
       };
     }),
   );
-}
-
-// Only signed-in users of this app may trigger a sync.
-export async function requireUser(req: Request) {
-  const token = req.headers.get("authorization")?.replace(/^Bearer /, "");
-  if (!token) return null;
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)!,
-  );
-  const { data } = await supabase.auth.getUser(token);
-  return data.user;
 }
