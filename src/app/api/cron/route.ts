@@ -10,7 +10,7 @@ import { MILESTONES } from "@/lib/quit";
 import { fileThoughts } from "@/lib/remember";
 import { fetchBankData } from "@/lib/lunchflow";
 import { sendPush } from "@/lib/push";
-import { fromSyncToken, setStatus } from "@/lib/serviceDb";
+import { fromCron, setStatus } from "@/lib/serviceDb";
 import { think } from "@/lib/think";
 
 export const maxDuration = 60;
@@ -27,11 +27,11 @@ const scrub = (s: string) =>
     .replace(/\s{2,}/g, " ")
     .trim();
 
-// Heartbeat, called every 30 minutes by Supabase (see supabase/006_live.sql), so the dashboard
+// Heartbeat, called every 30 minutes by Supabase (see supabase/010_source_keys.sql), so the dashboard
 // keeps itself up to date while your phone and laptop are off.
 export async function POST(req: Request) {
   const now = Date.now();
-  const auth = await fromSyncToken(req);
+  const auth = await fromCron(req);
   if ("error" in auth) return auth.error;
   const { db, userId } = auth;
   const done: Record<string, string> = {};

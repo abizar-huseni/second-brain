@@ -128,7 +128,7 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 
 - **One owner.** The first account owns the app. `supabase/007_lockdown.sql` blocks every later sign-up, and every server route (AI, bank, heartbeat, webhooks) checks it's you, so nobody who finds the URL can use your bank or AI keys.
 - **Row Level Security** on every table: the browser key only ever sees your own rows. Server-only secrets (`app_secrets`) can't be read with a browser login at all.
-- **Sync token** (Me page) is sent only in the `x-sync-token` header, never in a URL, so it doesn't end up in logs.
+- **One key per source.** The watch and the Google script each have their own key (Me → Live connections), sent only in the `x-sync-token` header, never in a URL. A leaked Google key can't post watch data. The heartbeat uses a secret only the database and server know.
 - **Security headers** on every page: a Content Security Policy (the app only talks to itself and Supabase), no framing, HTTPS only, and no caching of API answers.
 
 ### Adding SQL
@@ -149,7 +149,7 @@ UK banks don't offer free open banking access to individuals, so this uses [Lunc
 - **Heartbeat:** `supabase/006_live.sql` schedules Supabase's built-in `pg_cron` to call `/api/cron` every 30 minutes. It syncs banks (every 2 hours, if `LUNCHFLOW_API_KEY` is set) and writes the morning (7am) and evening (6pm) coach brief.
 - **Gmail + Calendar:** paste [`integrations/google-apps-script.js`](integrations/google-apps-script.js) into script.google.com and follow the 4 steps at the top. Google runs it every 10 minutes and sends new inbox emails (sender, subject, first 200 characters; promotions skipped) and the next 7 days of events.
 - **About me:** the Me page holds your situation (visa rules, deadlines, money, health). The coach treats it as hard limits.
-- All three use your sync token from the Me page, and status dots on Today show when each last worked.
+- The watch and the Google script each use their own key from the Me page (an older shared sync token keeps working until you give a source its own key). The heartbeat uses a server-only secret. Status dots on Today show when each last worked.
 
 ## Laptop + phone agent (free)
 
@@ -168,7 +168,7 @@ Samsung Health has no web API, but it writes to Android's Health Connect. The op
 
 1. Make sure `SUPABASE_SERVICE_ROLE_KEY` is set in Vercel (server-only, never `NEXT_PUBLIC_`).
 2. Samsung Health → Settings → Health Connect: allow it to share steps, sleep, heart rate and exercise.
-3. In the app: Me → Create my sync token.
+3. In the app: Me → Live connections → Watch → Create key.
 4. In HC Webhook: grant Health Connect access, add a webhook with the URL and the `x-sync-token` header shown on the Health page, pick an interval.
 
 Raw readings land in `health_samples`; each push recalculates the affected days in `health_days`.

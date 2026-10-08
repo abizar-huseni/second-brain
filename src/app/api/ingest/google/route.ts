@@ -19,7 +19,7 @@ function parseFrom(from: string) {
 
 // Receives new Gmail + upcoming Calendar events from the Google Apps Script in integrations/.
 export async function POST(req: Request) {
-  const auth = await fromSyncToken(req);
+  const auth = await fromSyncToken(req, "google");
   if ("error" in auth) return auth.error;
   const { db, userId } = auth;
   const body = (await req.json().catch(() => null)) as { emails?: Email[]; events?: Event[] } | null;

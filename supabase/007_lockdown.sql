@@ -39,22 +39,7 @@ exception when insufficient_privilege then
 end
 $$;
 
--- Only the owner's sync token is called by the heartbeat.
-select cron.unschedule(jobid) from cron.job where jobname = 'second-brain-heartbeat';
-select cron.schedule(
-  'second-brain-heartbeat',
-  '*/30 * * * *',
-  $$
-  select net.http_post(
-    url := 'https://second-brain-lac-tau.vercel.app/api/cron',
-    headers := jsonb_build_object('content-type', 'application/json', 'x-sync-token', t.token),
-    body := '{}'::jsonb,
-    timeout_milliseconds := 60000
-  )
-  from public.sync_tokens t
-  where t.user_id = public.owner_id();
-  $$
-);
+-- The heartbeat schedule lives in 010_source_keys.sql.
 
 -- Server-only secrets (notification keys, owner): not even readable with a browser login.
 revoke all on public.app_secrets from anon, authenticated;

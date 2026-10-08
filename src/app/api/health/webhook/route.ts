@@ -2,10 +2,10 @@ import { DAY_TYPES, daysFromSamples, samplesFromPayload, TZ, type Sample } from 
 import { fromSyncToken, setStatus } from "@/lib/serviceDb";
 
 // Receives pushes from the HC Webhook Android app.
-// Header: x-sync-token: <your token from the Me page>
+// Header: x-sync-token: <the watch key from the Me page>
 // Needs SUPABASE_SERVICE_ROLE_KEY in Vercel (server-only), because the phone has no login session.
 export async function POST(req: Request) {
-  const auth = await fromSyncToken(req);
+  const auth = await fromSyncToken(req, "watch");
   if ("error" in auth) return auth.error;
   const { db, userId: user_id } = auth;
 

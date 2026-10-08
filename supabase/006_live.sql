@@ -192,22 +192,7 @@ create policy "own briefs" on briefs for all using (user_id = auth.uid()) with c
 drop policy if exists "own sync status" on sync_status;
 create policy "own sync status" on sync_status for select using (user_id = auth.uid());
 
--- Heartbeat: every 30 minutes Supabase calls the app's /api/cron with your sync token.
--- Uses Supabase's built-in pg_cron + pg_net (free). Change the URL if you deploy elsewhere.
+-- Heartbeat: Supabase's built-in pg_cron + pg_net (free) call the app every 30 minutes.
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
-
-select cron.unschedule(jobid) from cron.job where jobname = 'second-brain-heartbeat';
-select cron.schedule(
-  'second-brain-heartbeat',
-  '*/30 * * * *',
-  $$
-  select net.http_post(
-    url := 'https://second-brain-lac-tau.vercel.app/api/cron',
-    headers := jsonb_build_object('content-type', 'application/json', 'x-sync-token', t.token),
-    body := '{}'::jsonb,
-    timeout_milliseconds := 60000
-  )
-  from public.sync_tokens t;
-  $$
-);
+-- The heartbeat schedule lives in 010_source_keys.sql.
