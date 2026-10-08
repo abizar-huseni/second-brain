@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Second Brain
 
-## Getting Started
+A personal dashboard that keeps me in line: goals, habits, daily check-ins, and eventually fitness, money and notes, all in one app on my phone and laptop.
 
-First, run the development server:
+Built in public by [@abizar-huseni](https://github.com/abizar-huseni) while learning Python, SQL and data analysis.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## What v1 does
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Goals** grouped by area (growth, fitness, mind, money, work), each with small steps and a progress bar
+- **Habits** to build and habits to break, ticked daily, with streaks
+- **Morning check-in**: mood, energy, top 3 for today
+- **Night check-in**: what got done, hours worked, mood, journal
+- **Today dashboard**: check-in status, habit score, hours this week, 14-day mood chart, goal progress
+- **Installable** on phone and laptop as a PWA
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Part | Tool | Why |
+|---|---|---|
+| App | Next.js + React + Tailwind | One codebase for phone and laptop |
+| Database + login | Supabase (Postgres) | Real SQL on my own data, Row Level Security keeps it private |
+| Hosting | Vercel | Free, deploys on every push |
 
-## Learn More
+Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 
-To learn more about Next.js, take a look at the following resources:
+## Setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor, paste `supabase/schema.sql`, run it.
+2. **Keys**: copy `.env.example` to `.env.local` and paste your Project URL and anon key from Project Settings > API. Never commit `.env.local`.
+3. **Run locally**:
+   ```bash
+   npm install
+   npm run dev
+   ```
+   Open http://localhost:3000 and create your account.
+4. **Lock it down**: once your account exists, turn off new sign-ups in Supabase (Authentication > Sign In / Providers > "Allow new users to sign up").
+5. **Deploy**: import this repo on [vercel.com](https://vercel.com), add the same two env variables, deploy.
+6. **Install on your phone**: open the Vercel URL in Chrome > menu > "Add to Home screen". On a laptop, click the install icon in the address bar.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Roadmap
 
-## Deploy on Vercel
+- [x] **v1**: goals, habits, check-ins, dashboard
+- [ ] **v2**: quick notes + mind map, money (payslip upload, expenses, debt tracker), Samsung Health CSV import, Google Keep import (Takeout)
+- [ ] **v3**: live Galaxy Watch data via Health Connect, UK Open Banking for Lloyds + HSBC, Gmail summary, AI coach
+- [ ] **v4**: weekly review, correlations (sleep vs mood vs productivity) in Python
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Build log
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Date | What shipped |
+|---|---|
+| 2026-10-08 | v1 scaffold: goals, habits, check-ins, dashboard, PWA |

@@ -1,103 +1,121 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { daysAgo, toDay } from "@/lib/dates";
+import { goalProgress } from "@/lib/goals";
+import Progress from "@/components/Progress";
+import type { Checkin, Goal, Habit, HabitLog } from "@/lib/types";
+
+type Data = { goals: Goal[]; habits: Habit[]; logs: HabitLog[]; checkins: Checkin[] };
+
+export default function Today() {
+  const [data, setData] = useState<Data | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const [g, h, l, c] = await Promise.all([
+        supabase.from("goals").select("*"),
+        supabase.from("habits").select("*").eq("archived", false),
+        supabase.from("habit_logs").select("habit_id, day").eq("day", toDay()),
+        supabase.from("checkins").select("*").gte("day", daysAgo(13)).order("day"),
+      ]);
+      setData({ goals: g.data ?? [], habits: h.data ?? [], logs: l.data ?? [], checkins: c.data ?? [] });
+    })();
+  }, []);
+
+  if (!data) return <p className="text-zinc-500">Loading…</p>;
+
+  const today = toDay();
+  const morning = data.checkins.find((c) => c.day === today && c.kind === "morning");
+  const night = data.checkins.find((c) => c.day === today && c.kind === "night");
+  const good = data.habits.filter((h) => h.kind === "good");
+  const goodDone = good.filter((h) => data.logs.some((l) => l.habit_id === h.id)).length;
+  const slips = data.habits.filter((h) => h.kind === "bad" && data.logs.some((l) => l.habit_id === h.id)).length;
+  const hoursWeek = data.checkins.filter((c) => c.day >= daysAgo(6)).reduce((sum, c) => sum + Number(c.hours_worked ?? 0), 0);
+  const big = data.goals.filter((g) => !g.parent_id);
+
+  // Average mood per day for the last 14 days.
+  const mood = Array.from({ length: 14 }, (_, i) => {
+    const day = daysAgo(13 - i);
+    const vals = data.checkins.filter((c) => c.day === day && c.mood).map((c) => c.mood as number);
+    return { day, value: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null };
+  });
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="space-y-4">
+      <h1 className="text-2xl font-semibold">{greeting}</h1>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <div className="grid grid-cols-2 gap-3">
+        <CheckinTile label="Morning" done={!!morning} />
+        <CheckinTile label="Night" done={!!night} />
+      </div>
+
+      {morning?.priorities && (
+        <div className="card">
+          <p className="label">Today&apos;s top 3</p>
+          <p className="whitespace-pre-line text-sm">{morning.priorities}</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="Habits" value={`${goodDone}/${good.length}`} />
+        <Stat label="Slips" value={String(slips)} />
+        <Stat label="Hours (7d)" value={hoursWeek.toFixed(1)} />
+      </div>
+
+      <div className="card">
+        <p className="label">Mood, last 14 days</p>
+        <div className="flex h-24 items-end gap-1">
+          {mood.map((m) => (
+            <div
+              key={m.day}
+              title={`${m.day}: ${m.value?.toFixed(1) ?? "no check-in"}`}
+              className={`flex-1 rounded-t ${m.value ? "bg-emerald-500" : "bg-zinc-200 dark:bg-zinc-800"}`}
+              style={{ height: `${m.value ? m.value * 10 : 4}%` }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="card space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="label mb-0">Goals</p>
+          <Link href="/goals" className="text-xs text-zinc-500">All →</Link>
+        </div>
+        {big.length === 0 && <p className="text-sm text-zinc-500">No goals yet. Add your first one.</p>}
+        {big.map((g) => {
+          const [done, max] = goalProgress(g, data.goals.filter((s) => s.parent_id === g.id));
+          return (
+            <div key={g.id}>
+              <p className="mb-1 text-sm">{g.title}</p>
+              <Progress value={done} max={max} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CheckinTile({ label, done }: { label: string; done: boolean }) {
+  return (
+    <Link href="/checkin" className={`card text-center ${done ? "border-emerald-500" : ""}`}>
+      <p className="text-sm text-zinc-500">{label}</p>
+      <p className="text-lg font-semibold">{done ? "✓ Done" : "Not yet"}</p>
+    </Link>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="card text-center">
+      <p className="text-xl font-semibold tabular-nums">{value}</p>
+      <p className="text-xs text-zinc-500">{label}</p>
     </div>
   );
 }
