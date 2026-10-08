@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { isAuthRetryableFetchError, type Session } from "@supabase/supabase-js";
 import { isConfigured, supabase } from "@/lib/supabase";
+import { wipeLocalData } from "@/lib/cache";
 import Shell from "./Shell";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
@@ -19,6 +20,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       .catch(() => setSession(null)); // INITIAL_SESSION is ignored below, so never leave the spinner up forever
     const { data } = supabase.auth.onAuthStateChange((e, s) => {
       if (e === "INITIAL_SESSION") return; // getSession() above sets the first state (INITIAL_SESSION is null when offline)
+      if (e === "SIGNED_OUT") wipeLocalData(); // nothing of yours stays on a device you signed out of
       setSession(s);
     });
     return () => data.subscription.unsubscribe();

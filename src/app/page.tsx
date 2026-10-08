@@ -24,6 +24,7 @@ import FuelCard from "@/components/FuelCard";
 import DeadlineCountdown from "@/components/DeadlineCountdown";
 import SetupCard from "@/components/SetupCard";
 import { SleepTile } from "@/components/SleepPanel";
+import { readCache, writeCache } from "@/lib/cache";
 
 type Mail = { external_id: string; from_name: string; subject: string; category: string; unread: boolean; received_at: string };
 type CalEvent = { external_id: string; title: string; starts_at: string; all_day: boolean; location: string | null };
@@ -39,7 +40,13 @@ export default function Today() {
   const lastScore = useRef<number | null>(null);
 
   useEffect(() => {
+    let alive = true;
     (async () => {
+      // Paint last-loaded data straight away (only if it's from today and this account), then refresh underneath.
+      const uid = (await supabase.auth.getSession()).data.session?.user.id;
+      const key = uid ? `today:${uid}` : null;
+      const cached = key ? readCache<{ day: string; data: Data }>(key) : null;
+      if (alive && cached?.day === toDay()) setData((d) => d ?? cached.data);
       const [g, h, l, c, hd, ib, ev, st] = await Promise.all([
         supabase.from("goals").select("*"),
         supabase.from("habits").select("*").eq("archived", false).order("created_at"),
@@ -50,7 +57,9 @@ export default function Today() {
         supabase.from("events").select("*").gte("starts_at", new Date(Date.now() - 3600000).toISOString()).lte("starts_at", new Date(Date.now() + 2 * 86400000).toISOString()).order("starts_at").limit(4),
         supabase.from("sync_status").select("source, last_ok, last_error"),
       ]);
-      setData({
+      // Offline or erroring: keep showing the saved copy rather than an empty day.
+      if (cached && [g, h, l, c].some((r) => r.error)) return;
+      const fresh: Data = {
         goals: g.data ?? [],
         habits: h.data ?? [],
         logs: l.data ?? [],
@@ -59,8 +68,14 @@ export default function Today() {
         mail: ib.data ?? [],
         events: ev.data ?? [],
         sync: st.data ?? [],
-      });
+      };
+      if (!alive) return;
+      setData(fresh);
+      if (key) writeCache(key, { day: toDay(), data: fresh });
     })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // Confetti the moment the day hits 100%.
