@@ -6,6 +6,7 @@ import { toDay } from "@/lib/dates";
 import type { Checkin } from "@/lib/types";
 import { ENERGY, MOOD } from "@/lib/moods";
 import EmojiScale from "@/components/EmojiScale";
+import Confetti from "@/components/Confetti";
 
 const empty = (kind: Checkin["kind"]): Checkin => ({
   day: toDay(),
@@ -44,17 +45,18 @@ export default function CheckinPage() {
 
   return (
     <div className="rise space-y-4">
-      <div className="flex gap-2">
+      <div className="flex gap-1 rounded-2xl bg-zinc-500/10 p-1">
         {(["morning", "night"] as const).map((k) => (
           <button
             key={k}
             onClick={() => setKind(k)}
-            className={`flex-1 rounded-xl py-2 text-sm capitalize transition ${kind === k ? "btn" : "border border-zinc-300 dark:border-zinc-700"}`}
+            className={`flex-1 rounded-xl py-2.5 text-sm capitalize transition ${kind === k ? "bg-[var(--surface)] font-semibold shadow-sm" : "text-zinc-500"}`}
           >
             {k === "morning" ? "🌅" : "🌙"} {k}
           </button>
         ))}
       </div>
+      <p className="px-1 text-sm text-zinc-500">{kind === "morning" ? "Ten seconds. How are you starting the day?" : "Close the loop. How did today go?"}</p>
 
       <div className="card space-y-4">
         <EmojiScale label="How do you feel?" scale={MOOD} value={form.mood} onChange={(v) => set("mood", v)} />
@@ -81,7 +83,8 @@ export default function CheckinPage() {
 
         <Field label="Journal" value={form.journal} onChange={(v) => set("journal", v)} rows={5} placeholder="What's on your mind?" />
 
-        <button className="btn w-full py-3" onClick={save}>Save {kind} check-in</button>
+        <button className="btn btn-accent w-full py-3.5 text-base" onClick={save}>Save {kind} check-in</button>
+        {saved?.ok && <Confetti />}
         {saved && (
           <div className="celebrate text-center">
             <p className="text-4xl">{saved.ok ? "🎉" : "⚠️"}</p>

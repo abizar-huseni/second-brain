@@ -21,7 +21,7 @@ export default function TopBar({ initial }: { initial: string }) {
     return () => window.removeEventListener("scroll", on);
   }, []);
 
-  const title = path === "/" ? "Second Brain" : (group?.label ?? page?.label ?? "");
+  const title = group?.label ?? page?.label ?? "";
   const pills = group && group.pages.length > 1 ? group.pages : null;
 
   return (
@@ -30,7 +30,14 @@ export default function TopBar({ initial }: { initial: string }) {
         <div className="flex h-14 items-center gap-2">
           {path === "/" && <span className="brain-mark text-xl sm:hidden">🧠</span>}
           <h1 key={title} className="rise flex-1 truncate text-xl font-semibold tracking-tight">
-            {title}
+            {path === "/" ? (
+              <>
+                <span className="sm:hidden">Second Brain</span>
+                <span className="hidden sm:inline">Today</span>
+              </>
+            ) : (
+              title
+            )}
           </h1>
           <div className="flex items-center gap-1 sm:hidden">
             <ThemeToggle />

@@ -57,36 +57,17 @@ export default function HealthPage() {
   const latest = days.at(-1)?.day;
 
   return (
-    <div className="space-y-4">
-      <Link href="/me" className="card card-link flex items-center justify-between">
-        <span className="text-sm">⌚ Live watch sync settings</span>
-        <span className="text-xs text-zinc-500">Me →</span>
-      </Link>
-
-      <div className="card space-y-2">
-        <p className="label">Import history from Samsung Health</p>
-        <p className="text-xs text-zinc-500">
-          Samsung Health → ⋮ → Settings → Download personal data. Move the folder to this device, then select all the CSV files inside it.
-          Re-importing is safe: days are updated, never duplicated.
-        </p>
-        <label className="btn block cursor-pointer text-center">
-          Choose CSV files
-          <input type="file" accept=".csv" multiple className="hidden" onChange={(e) => importFiles(e.target.files)} />
-        </label>
-        {status && <p className="text-sm text-zinc-500">{status}</p>}
-        {latest && <p className="text-xs text-zinc-500">Latest data: {latest}</p>}
-      </div>
-
+    <div className="stagger space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Steps / day (7d)" value={steps7 === null ? "–" : Math.round(steps7).toLocaleString("en-GB")} />
-        <Stat label="Sleep / night (7d)" value={sleep7 === null ? "–" : hm(sleep7)} />
-        <Stat label="Stress (7d)" value={stress7 === null ? "–" : String(Math.round(stress7))} />
-        <Stat label="Lowest HR (7d)" value={hr7 === null ? "–" : `${Math.round(hr7)} bpm`} />
+        <Stat icon="👟" label="Steps / day (7d)" value={steps7 === null ? "–" : Math.round(steps7).toLocaleString("en-GB")} />
+        <Stat icon="😴" label="Sleep / night (7d)" value={sleep7 === null ? "–" : hm(sleep7)} />
+        <Stat icon="🧘" label="Stress (7d)" value={stress7 === null ? "–" : String(Math.round(stress7))} />
+        <Stat icon="❤️" label="Lowest HR (7d)" value={hr7 === null ? "–" : `${Math.round(hr7)} bpm`} />
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-1 rounded-2xl bg-zinc-500/10 p-1">
         {[7, 30, 90].map((r) => (
-          <button key={r} onClick={() => setRange(r)} className={`flex-1 rounded-lg py-1.5 text-sm ${range === r ? "btn" : "border border-zinc-300 dark:border-zinc-700"}`}>
+          <button key={r} onClick={() => setRange(r)} className={`flex-1 rounded-xl py-2 text-sm transition ${range === r ? "bg-[var(--surface)] font-semibold shadow-sm" : "text-zinc-500"}`}>
             {r} days
           </button>
         ))}
@@ -104,6 +85,33 @@ export default function HealthPage() {
       <Chart title="Stress" hint="Lower is better">
         <Bars data={series("stress_avg")} color="bg-rose-500" />
       </Chart>
+
+      <details className="card group" open={!latest}>
+        <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">
+          ⌚ Watch sync and import
+          <span className="text-xs text-zinc-500 transition group-open:rotate-180">⌄</span>
+        </summary>
+        <div className="mt-3 space-y-3">
+        <Link href="/me" className="flex items-center justify-between rounded-2xl bg-zinc-500/5 px-3 py-2.5">
+          <span className="text-sm">⌚ Live watch sync settings</span>
+          <span className="text-xs text-zinc-500">Me →</span>
+        </Link>
+
+        <div className="space-y-2 pt-1">
+          <p className="label">Import history from Samsung Health</p>
+          <p className="text-xs text-zinc-500">
+            Samsung Health → ⋮ → Settings → Download personal data. Move the folder to this device, then select all the CSV files inside it.
+            Re-importing is safe: days are updated, never duplicated.
+          </p>
+          <label className="btn block cursor-pointer text-center">
+            Choose CSV files
+            <input type="file" accept=".csv" multiple className="hidden" onChange={(e) => importFiles(e.target.files)} />
+          </label>
+          {status && <p className="text-sm text-zinc-500">{status}</p>}
+          {latest && <p className="text-xs text-zinc-500">Latest data: {latest}</p>}
+        </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -120,9 +128,10 @@ function Chart({ title, hint, children }: { title: string; hint?: string; childr
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, icon }: { label: string; value: string; icon: string }) {
   return (
     <div className="card text-center">
+      <p className="text-xl">{icon}</p>
       <p className="text-lg font-semibold tabular-nums">{value}</p>
       <p className="text-xs text-zinc-500">{label}</p>
     </div>
