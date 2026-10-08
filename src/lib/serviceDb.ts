@@ -20,7 +20,9 @@ export async function fromSyncToken(req: Request, source: "watch" | "google") {
   if (!token) return { error: Response.json({ error: "Missing x-sync-token" }, { status: 401 }) };
   const owner = await ownerId();
   const denied = { error: Response.json({ error: "Invalid token" }, { status: 401 }) };
-  if (!owner) return denied;
+  // Not a bad key: the server can't read your account at all, so say so (a different code from a wrong key).
+  // Usually SUPABASE_SERVICE_ROLE_KEY in Vercel holds the wrong key (it must be the secret/service_role one, not the anon/publishable one).
+  if (!owner) return { error: Response.json({ error: "Server can't read the database: check SUPABASE_SERVICE_ROLE_KEY in Vercel" }, { status: 503 }) };
 
   const { data: keys, error } = await db.from("source_keys").select("source, token").eq("user_id", owner);
   const own = error ? undefined : keys?.find((k) => k.source === source);
