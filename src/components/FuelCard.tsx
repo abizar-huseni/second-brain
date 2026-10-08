@@ -42,7 +42,7 @@ export default function FuelCard() {
     if (el) setSlide(Math.round(el.scrollLeft / el.clientWidth));
   }
 
-  if (fuel === undefined) return <div className="skeleton h-44 rounded-[1.35rem]" />;
+  if (fuel === undefined) return <div className="skeleton h-44" />;
   if (!fuel)
     return (
       <div className="card flex items-center justify-between gap-3">
@@ -69,7 +69,7 @@ export default function FuelCard() {
       <ol className="space-y-1.5 text-sm">
         {fuel.book.ideas.map((idea, i) => (
           <li key={i} className="flex gap-2">
-            <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent font-semibold tabular-nums">{i + 1}</span>
+            <span className="accent-text font-semibold tabular-nums">{i + 1}</span>
             <span>{idea}</span>
           </li>
         ))}
@@ -116,7 +116,7 @@ export default function FuelCard() {
             key={n}
             aria-label={n}
             onClick={() => strip.current?.scrollTo({ left: i * strip.current.clientWidth, behavior: "smooth" })}
-            className={`h-1.5 rounded-full transition-all ${slide === i ? "w-5 bg-emerald-400" : "w-1.5 bg-zinc-400/40"}`}
+            className={`h-1.5 rounded-full transition-all ${slide === i ? "w-5 bg-[var(--accent)]" : "w-1.5 bg-zinc-400/40"}`}
           />
         ))}
       </div>

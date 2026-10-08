@@ -24,7 +24,7 @@ function debtTone(debt: number) {
 // Compact tile for Today.
 export function SleepTile() {
   const { report, bedAt } = useSleep();
-  if (!report) return <div className="skeleton h-[104px] rounded-[1.35rem]" />;
+  if (!report) return <div className="skeleton h-[104px]" />;
   const tone = debtTone(report.debtMin);
   return (
     <Link href="/health#sleep" className="card card-link relative block overflow-hidden !border-indigo-400/10 !bg-gradient-to-br from-indigo-950/90 to-slate-950/95 text-white">
@@ -68,7 +68,7 @@ export default function SleepPanel() {
     return () => clearInterval(t);
   }, []);
 
-  if (!report) return <div className="skeleton h-80 rounded-[1.35rem]" />;
+  if (!report) return <div className="skeleton h-80" />;
   const tone = debtTone(report.debtMin);
   const pct = Math.min(1, report.debtMin / 600);
 

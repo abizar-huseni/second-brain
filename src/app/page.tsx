@@ -119,6 +119,7 @@ export default function Today() {
   const hour = now.getHours();
   const greeting = hour < 5 ? "Still up?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const sky = skyFor(hour);
+  const bedtime = hour >= 20 || hour < 5;
   const sleep = data.health?.sleep_min;
   const mail = [...data.mail].sort((a, b) => MAIL_RANK[a.category] - MAIL_RANK[b.category]).slice(0, 3);
   const live = [
@@ -169,12 +170,12 @@ export default function Today() {
         </div>
       </section>
 
+      {/* Evenings, sleep moves to the top: it's what matters next. */}
+      {bedtime && <SleepTile />}
       <QuitCard />
-      <SleepTile />
 
       <p className="eyebrow">Now</p>
       <TodayPlan />
-      <DevicesCard />
 
       <div className="card space-y-3">
         <div className="flex items-center justify-between">
@@ -212,10 +213,12 @@ export default function Today() {
         )}
       </div>
 
+      <DevicesCard />
+
       <p className="eyebrow">Your brain</p>
       <InsightsCard />
-      <CoachCard />
       <FuelCard />
+      <CoachCard />
       <ResurfaceCard />
       <NotifyButton compact />
 
@@ -250,6 +253,7 @@ export default function Today() {
       )}
 
       <p className="eyebrow">Pulse</p>
+      {!bedtime && <SleepTile />}
       <div className="card space-y-4">
         <div className="grid grid-cols-4 gap-2 text-center">
           <Mini icon={faceFor(MOOD, lastMood?.value)?.emoji ?? "🙂"} value={faceFor(MOOD, lastMood?.value)?.label ?? "–"} label="Mood" />
