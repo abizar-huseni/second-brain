@@ -4,6 +4,7 @@ import { makeBrief, slotNow } from "@/lib/coach";
 import { makeFuel } from "@/lib/fuel";
 import { fmtClock, fmtDur, sleepReport } from "@/lib/sleep";
 import { suggestDeviceActions } from "@/lib/deviceSuggest";
+import { situationChecks } from "@/lib/situationChecks";
 import { addDays, nextDue, weekStart } from "@/lib/ldates";
 import { makePlan, type PlanKind } from "@/lib/plan";
 import { MILESTONES } from "@/lib/quit";
@@ -149,6 +150,21 @@ export async function POST(req: Request) {
       });
       await setStatus(db, userId, "sleep-nudge", { ok: true, info: { night } });
     }
+  }
+
+  // Dissertation, work hours and Graduate visa: fixed daily checks with top-priority insights, and a push when due.
+  try {
+    const pushed = ((status?.find((x) => x.source === "situation")?.info as { pushed?: Record<string, string> } | null)?.pushed ?? {}) as Record<string, string>;
+    const due = await situationChecks(db, userId, day, pushed);
+    if (hour >= 8 && due.length) {
+      for (const p of due) {
+        await sendPush(db, userId, { title: p.title, body: p.body, url: p.url });
+        pushed[p.key] = day;
+      }
+      await setStatus(db, userId, "situation", { ok: true, info: { pushed } });
+    }
+  } catch (e) {
+    console.error("situation checks:", (e as Error).message);
   }
 
   // Laptop and phone: suggest safe fixes (screen timeout, space, bedtime sleep, dim at wind-down) to approve in the app.

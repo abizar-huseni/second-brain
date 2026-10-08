@@ -7,6 +7,8 @@ import { GUIDANCE_PROMPT } from "./nhs";
 import { sleepReport, sleepSummary } from "./sleep";
 import { addDays } from "./ldates";
 import { countable } from "./statements";
+import { goalProgress } from "./goals";
+import { SITUATION_COLS, situationLines, type Situation } from "./situation";
 import { missingSource, ownNote } from "./notes";
 
 const TZ = "Europe/London";
@@ -61,7 +63,7 @@ export async function buildContext(db: SupabaseClient, userId?: string): Promise
   const monthStart = `${today.slice(0, 8)}01`;
   const from = (table: string, cols = "*") => (userId ? db.from(table).select(cols).eq("user_id", userId) : db.from(table).select(cols));
   const nowIso = new Date().toISOString();
-  const [c, h, l, g, hd, t, d, p, n, pr, ib, ev, st, ins, tk, bl, qu, cr, ss, sn] = await Promise.all([
+  const [c, h, l, g, hd, t, d, p, n, pr, ib, ev, st, ins, tk, bl, qu, cr, ss, sn, si] = await Promise.all([
     from("checkins").gte("day", ago(6)).order("day"),
     from("habits").eq("archived", false),
     from("habit_logs", "habit_id, day").gte("day", ago(60)),
@@ -82,6 +84,7 @@ export async function buildContext(db: SupabaseClient, userId?: string): Promise
     from("cravings", "quit_id, at, strength, trigger, outcome").gte("at", new Date(Date.now() - 14 * 86400000).toISOString()),
     from("health_samples", "type, start_time, end_time, value").in("type", ["sleep", "awake", "sleep_manual"]).gte("end_time", new Date(Date.now() - 21 * 86400000).toISOString()),
     from("profile", "sleep_need_min").maybeSingle(), // separate so a missing column never hides "About me"
+    from("profile", SITUATION_COLS).maybeSingle(),
   ]);
   const checkins = (c.data ?? []) as unknown as Checkin[];
   const habits = (h.data ?? []) as unknown as Habit[];
@@ -107,6 +110,10 @@ export async function buildContext(db: SupabaseClient, userId?: string): Promise
     "\n## About the user (their own words)",
     about ? cut(about, 2500) : "Not written yet. Suggest filling in the About me page.",
   ];
+  // Confirmed dates and visa rules (You page). Missing until the database update runs, so it's optional.
+  const situation = si.error ? null : (si.data as unknown as Situation | null);
+  const sit = situation ? situationLines(situation, today) : [];
+  if (sit.length) out.push("\n## Their situation (confirmed dates and hard rules)", ...sit);
 
   const flagged = (ins.data ?? []) as unknown as { title: string; body: string }[];
   if (flagged.length) {
@@ -185,7 +192,8 @@ export async function buildContext(db: SupabaseClient, userId?: string): Promise
   if (!top.length) out.push("None set.");
   for (const goal of top) {
     const subs = goals.filter((x) => x.parent_id === goal.id);
-    const progress = subs.length ? pct(subs.filter((x) => x.done).length, subs.length) : goal.done ? 100 : pct(Number(goal.current), Number(goal.target));
+    const [got, of] = goalProgress(goal, subs);
+    const progress = !subs.length && goal.done ? 100 : pct(got, of);
     const next = subs.filter((x) => !x.done).slice(0, 3).map((x) => x.title);
     out.push(
       `${goal.title} [${goal.area}] ${progress}%${goal.deadline ? `, due ${goal.deadline}` : ""}${next.length ? `; next steps: ${next.join("; ")}` : ""}`,

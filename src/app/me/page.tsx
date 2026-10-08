@@ -8,10 +8,11 @@ import LinkDevice from "@/components/LinkDevice";
 import NotifyButton from "@/components/NotifyButton";
 import AIStatus from "@/components/AIStatus";
 import RulesCard from "@/components/RulesCard";
+import SituationCard from "@/components/SituationCard";
 import { DEFAULT_NAME } from "@/lib/useAssistant";
 
-const PROMPT = `Situation: visa type, end date, how many hours you're allowed to work, key deadlines
-Work + study: course, job, hours, what you're aiming for next
+const PROMPT = `Study: course, university, what you're aiming for next
+Work: part-time hours and where
 Money: income, rent, debts, what you're saving for
 Health + training: goals, injuries, routine
 How my coach should talk to me: e.g. push me hard, call out excuses`;
@@ -55,6 +56,7 @@ export default function MePage() {
       <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 text-xs">
         {[
           { href: "#link", icon: "📲", label: "Link a device" },
+          { href: "#situation", icon: "🎓", label: "Dates" },
           { href: "#about", icon: "👤", label: "About me" },
           { href: "#rules", icon: "📏", label: "Rules" },
           { href: "#devices", icon: "🛰️", label: "Laptop + phone" },
@@ -72,6 +74,9 @@ export default function MePage() {
       </div>
 
       <p className="eyebrow">Your brain</p>
+      <div id="situation" className="scroll-mt-20">
+        <SituationCard />
+      </div>
       <div id="about" className="card scroll-mt-20 space-y-2">
         <p className="label">👤 About me</p>
         <p className="text-xs text-zinc-500">Your assistant reads this before every brief, plan and insight. Rules and deadlines here (like visa work limits) are treated as hard limits.</p>

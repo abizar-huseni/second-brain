@@ -8,13 +8,15 @@ import { CATALOG, describe, RISK_STYLE } from "@/lib/agentCatalog";
 import { approve, isOnline, KIND_ICON, loadDevices, reject, type Device, type DeviceAction } from "@/lib/devices";
 import { getApprover } from "@/lib/approver";
 import { timeAgo } from "@/lib/time";
+import { useAssistantName } from "@/lib/useAssistant";
 
-const SOURCE = { me: "You asked", ai: "Brain suggests", device: "Noticed" } as const;
+const SOURCE = { me: "You asked", ai: "Suggested", device: "Noticed" } as const;
 const EXAMPLES = ["Stop my screen going black", "Keep the laptop awake for 2 hours", "Close Discord, I need to focus", "Find my phone"];
 
 // Today → Now: what your laptop and phone want to do, waiting for your yes. Nothing runs without it.
 // quiet: on Today, show nothing until a device is paired (setup lives on You).
 export default function DevicesCard({ quiet }: { quiet?: boolean }) {
+  const assistant = useAssistantName();
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [actions, setActions] = useState<DeviceAction[]>([]);
   const [myKey, setMyKey] = useState("");
@@ -143,7 +145,7 @@ export default function DevicesCard({ quiet }: { quiet?: boolean }) {
                 )}
                 <p className="text-sm font-medium">{a.title}</p>
                 <p className="text-[11px] text-zinc-500">
-                  {SOURCE[a.source]} · {name(a.device_id)} · {timeAgo(a.created_at)}
+                  {a.source === "ai" ? `${assistant} suggests` : SOURCE[a.source]} · {name(a.device_id)} · {timeAgo(a.created_at)}
                 </p>
                 {a.why && <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{a.why}</p>}
                 {!high && (

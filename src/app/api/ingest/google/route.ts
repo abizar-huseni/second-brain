@@ -3,11 +3,10 @@ import { fromSyncToken, setStatus } from "@/lib/serviceDb";
 type Email = { id: string; thread_id?: string; from: string; subject: string; snippet?: string; received_at: string; unread?: boolean; starred?: boolean };
 type Event = { id: string; title: string; starts_at: string; ends_at?: string; all_day?: boolean; location?: string };
 
-// Rough sorting so the coach can spot bills, uni and job mail without reading everything.
+// Rough sorting so the coach can spot bills and uni mail without reading everything.
 const RULES: [string, RegExp][] = [
   ["money", /invoice|payment|bill\b|statement|direct debit|payslip|salary|refund|overdue|reminder to pay|klarna|clearpay|council tax|hmrc|bank/i],
   ["uni", /universit|\.ac\.uk|dissertation|module|assessment|coursework|graduation|visa|ukvi|\bcas\b|brp|evisa/i],
-  ["jobs", /application|interview|recruit|vacanc|linkedin|indeed|reed|hiring|offer|shift|rota/i],
 ];
 const categorize = (text: string) => RULES.find(([, re]) => re.test(text))?.[0] ?? "other";
 

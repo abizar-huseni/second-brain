@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { callApi } from "@/lib/api";
 import { timeAgo } from "@/lib/time";
+import { useAssistantName } from "@/lib/useAssistant";
 
 type Status = { providers: { name: string; models: number }[]; research: boolean; lastServedBy: string | null; lastOk: string | null; lastError: string | null };
 
@@ -13,6 +14,7 @@ const ADD = [
 ];
 
 export default function AIStatus() {
+  const name = useAssistantName();
   const [s, setS] = useState<Status | null>(null);
   useEffect(() => {
     callApi<Status>("/api/ai/status").then(setS).catch(() => setS(null));
@@ -21,7 +23,7 @@ export default function AIStatus() {
   const missing = ADD.filter((a) => !s.providers.some((p) => p.name === a.name));
   return (
     <div className="card space-y-2">
-      <p className="label">🧠 Brain power</p>
+      <p className="label">🧠 {name}&apos;s power</p>
       {s.providers.length ? (
         <div className="flex flex-wrap gap-2">
           {s.providers.map((p, i) => (
