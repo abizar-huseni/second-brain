@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { daysAgo } from "@/lib/dates";
-import { buildHealthDays, type HealthDay } from "@/lib/samsung";
+import { buildHealthDays, buildSleepSamples, type HealthDay } from "@/lib/samsung";
 import Bars from "@/components/Bars";
+import SleepPanel from "@/components/SleepPanel";
+import QuitCard from "@/components/QuitCard";
 import Link from "next/link";
 
 const hm = (mins: number) => `${Math.floor(mins / 60)}h ${String(Math.round(mins % 60)).padStart(2, "0")}m`;
@@ -17,6 +19,7 @@ export default function HealthPage() {
   const [days, setDays] = useState<HealthDay[]>([]);
   const [status, setStatus] = useState("");
   const [range, setRange] = useState(30);
+  const [sleepKey, setSleepKey] = useState(0);
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("health_days").select("*").gte("day", daysAgo(365)).order("day");
@@ -41,7 +44,17 @@ export default function HealthPage() {
       const { error } = await supabase.from("health_days").upsert(chunk, { onConflict: "user_id,day" });
       if (error) return setStatus(`Error: ${error.message}`);
     }
-    setStatus(`Imported ${rows.length} days (${rows[0].day} to ${rows[rows.length - 1].day}).`);
+    // Exact sleep times too, so the body clock and wake-ups work on your history.
+    const sleep = buildSleepSamples(files);
+    for (let i = 0; i < sleep.length; i += 500) {
+      const { error } = await supabase.from("health_samples").upsert(sleep.slice(i, i + 500), { onConflict: "user_id,type,start_time,end_time", ignoreDuplicates: true });
+      if (error) {
+        setStatus(`Imported ${rows.length} days. Sleep times need supabase/007_sleep_agent.sql run once in Supabase.`);
+        return load();
+      }
+    }
+    setStatus(`Imported ${rows.length} days (${rows[0].day} to ${rows[rows.length - 1].day})${sleep.length ? ` and ${sleep.filter((x) => x.type === "sleep").length} nights of sleep` : ""}.`);
+    setSleepKey((k) => k + 1);
     load();
   }
 
@@ -57,25 +70,14 @@ export default function HealthPage() {
   const latest = days.at(-1)?.day;
 
   return (
-    <div className="space-y-4">
-      <Link href="/me" className="card card-link flex items-center justify-between">
-        <span className="text-sm">⌚ Live watch sync settings</span>
-        <span className="text-xs text-zinc-500">Me →</span>
+    <div className="stagger space-y-4">
+      <h1 className="text-[1.7rem] font-semibold tracking-tight">Body</h1>
+      <SleepPanel key={sleepKey} />
+      <QuitCard />
+      <Link href="/habits" className="card card-link flex items-center justify-between text-sm">
+        <span>✅ Habits you&apos;re building and breaking</span>
+        <span className="muted">→</span>
       </Link>
-
-      <div className="card space-y-2">
-        <p className="label">Import history from Samsung Health</p>
-        <p className="text-xs text-zinc-500">
-          Samsung Health → ⋮ → Settings → Download personal data. Move the folder to this device, then select all the CSV files inside it.
-          Re-importing is safe: days are updated, never duplicated.
-        </p>
-        <label className="btn block cursor-pointer text-center">
-          Choose CSV files
-          <input type="file" accept=".csv" multiple className="hidden" onChange={(e) => importFiles(e.target.files)} />
-        </label>
-        {status && <p className="text-sm text-zinc-500">{status}</p>}
-        {latest && <p className="text-xs text-zinc-500">Latest data: {latest}</p>}
-      </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Steps / day (7d)" value={steps7 === null ? "–" : Math.round(steps7).toLocaleString("en-GB")} />
@@ -86,7 +88,7 @@ export default function HealthPage() {
 
       <div className="flex gap-2">
         {[7, 30, 90].map((r) => (
-          <button key={r} onClick={() => setRange(r)} className={`flex-1 rounded-lg py-1.5 text-sm ${range === r ? "btn" : "border border-zinc-300 dark:border-zinc-700"}`}>
+          <button key={r} onClick={() => setRange(r)} className={`chip flex-1 ${range === r ? "chip-on" : ""}`}>
             {r} days
           </button>
         ))}
@@ -104,6 +106,26 @@ export default function HealthPage() {
       <Chart title="Stress" hint="Lower is better">
         <Bars data={series("stress_avg")} color="bg-rose-500" />
       </Chart>
+
+      <details className="card group">
+        <summary className="flex cursor-pointer list-none items-center justify-between text-sm">
+          <span>⌚ Watch sync and Samsung Health import</span>
+          <span className="text-xs muted transition group-open:rotate-180">⌄</span>
+        </summary>
+        <div className="mt-3 space-y-2">
+          <Link href="/me" className="block text-sm text-emerald-600 underline dark:text-emerald-400">Live watch sync settings (Me page)</Link>
+          <p className="text-xs muted">
+            Samsung Health → ⋮ → Settings → Download personal data. Move the folder to this device, then select all the CSV files inside it.
+            Re-importing is safe: days are updated, never duplicated. Your sleep history also fills in your body clock.
+          </p>
+          <label className="btn block cursor-pointer text-center">
+            Choose CSV files
+            <input type="file" accept=".csv" multiple className="hidden" onChange={(e) => importFiles(e.target.files)} />
+          </label>
+          {status && <p className="text-sm muted">{status}</p>}
+          {latest && <p className="text-xs muted">Latest data: {latest}</p>}
+        </div>
+      </details>
     </div>
   );
 }
@@ -113,7 +135,7 @@ function Chart({ title, hint, children }: { title: string; hint?: string; childr
     <div className="card">
       <div className="mb-2 flex items-baseline justify-between">
         <p className="label mb-0">{title}</p>
-        {hint && <span className="text-xs text-zinc-500">{hint}</span>}
+        {hint && <span className="text-xs muted">{hint}</span>}
       </div>
       {children}
     </div>
@@ -124,7 +146,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="card text-center">
       <p className="text-lg font-semibold tabular-nums">{value}</p>
-      <p className="text-xs text-zinc-500">{label}</p>
+      <p className="text-xs muted">{label}</p>
     </div>
   );
 }

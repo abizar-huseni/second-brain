@@ -41,6 +41,27 @@ For the brilliant thought that's gone a minute later:
 - **Remember this?** on Today brings back one old idea a day. Act on it, keep it, or let it go.
 - "Remind me on Friday..." gets a phone notification that morning.
 
+## Sleep debt and body clock
+
+On the Body page (and a tile on Today):
+- **Sleep debt** over the last 7 nights against your need (NHS: adults need 7 to 9 hours; default 8h, change it on the card). Catching up counts.
+- **Body clock**: early bird, in between or night owl, worked out from the middle of your sleep on free days (the Munich ChronoType method), plus how much weekends shift your clock ("social jetlag") and how much your bedtime wanders.
+- **Wake-ups in the night**: how many, how long, and the hour you most often wake, from your watch's sleep stages.
+- **Tonight**: a bedtime that pays your debt back without sleeping in (NHS advice), and a push an hour before to put screens away.
+- No watch? Tap **Going to sleep** and **I'm up**, or log a night by hand. Your Samsung Health export fills in your history too.
+
+## Mindset fuel
+
+Every morning the assistant picks a quote, one book in 60 seconds (3 ideas you can use today), a short video and a podcast episode, chosen for what you're going through right now. Swipe through it on Today.
+
+## Brain Link (your laptop)
+
+A tiny program for your laptop ([`agent/`](agent/)): ask "my screen keeps going black" and it suggests the fix, you tap **Approve**, the laptop does it. A fixed list of safe actions only (screen and sleep timers, lock, reminders, find files, read a document into memory, tidy a folder with undo). There is no "run any command".
+
+## Free AI that doesn't stall
+
+The assistant tries Gemini first, then Gemini's sibling models (each has its own free quota), then any backups you add in Vercel: `NVIDIA_API_KEY` (build.nvidia.com, free), `GROQ_API_KEY` (console.groq.com, free). "High demand" errors from one model just move it to the next.
+
 ## Quitting (nicotine, junk food...)
 
 The Quit page and the card on Today:
@@ -82,7 +103,7 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 
 ## Setup
 
-1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`, then `supabase/003_health.sql`, then `supabase/004_bank.sql`, then `supabase/005_live_health.sql`, then `supabase/006_live.sql`.
+1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`, then `supabase/003_health.sql`, then `supabase/004_bank.sql`, then `supabase/005_live_health.sql`, then `supabase/006_live.sql`, then `supabase/007_sleep_agent.sql`.
 2. **Keys**: copy `.env.example` to `.env.local` and paste your Project URL and anon key from Project Settings > API. Never commit `.env.local`.
 3. **Run locally**:
    ```bash
@@ -131,7 +152,8 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 - [x] **v3 part 2**: AI coach (daily brief + ask anything) on a free model, emoji check-ins, redesigned Today
 - [x] **v3 part 3**: live mode: server heartbeat, Gmail + Calendar feed, "About me" for the coach
 - [x] **v3 part 4**: self-directed insights, day/week/year/money plans, tasks + upcoming expenses, quit system, thought dump with voice + memory, push notifications, quick add
-- [ ] **v3 part 5**: notes from Obsidian, Sunday review
+- [x] **v4 part 1**: sleep debt + body clock, mindset fuel, Brain Link laptop agent, AI fallback chain, security hardening, calm redesign (5 tabs)
+- [ ] **v4 part 2**: notes from Obsidian, Sunday review
 - [ ] **v4**: weekly review, correlations (sleep vs mood vs productivity) in Python
 
 ## Build log
@@ -146,3 +168,4 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 | 2026-10-08 | Free AI coach (Gemini), emoji mood + energy, animated Today page |
 | 2026-10-08 | Live mode: heartbeat, Gmail + Calendar feed, Me page |
 | 2026-10-08 | The assistant thinks and plans on its own; quit system with craving SOS; quick add |
+| 2026-10-08 | Sleep debt + body clock, mindset fuel, Brain Link laptop agent, AI that never stalls, redesign |

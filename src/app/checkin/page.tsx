@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { toDay } from "@/lib/dates";
+import { daysAgo, toDay } from "@/lib/dates";
 import type { Checkin } from "@/lib/types";
-import { ENERGY, MOOD } from "@/lib/moods";
+import { ENERGY, faceFor, MOOD, moodColor } from "@/lib/moods";
 import EmojiScale from "@/components/EmojiScale";
+import { success } from "@/lib/haptics";
 
 const empty = (kind: Checkin["kind"]): Checkin => ({
   day: toDay(),
@@ -22,6 +24,16 @@ export default function CheckinPage() {
   const [kind, setKind] = useState<Checkin["kind"]>(() => (new Date().getHours() < 15 ? "morning" : "night"));
   const [form, setForm] = useState<Checkin>(empty(kind));
   const [saved, setSaved] = useState<{ ok: boolean; text: string } | null>(null);
+  const [history, setHistory] = useState<{ day: string; mood: number | null }[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    supabase
+      .from("checkins")
+      .select("day, mood")
+      .gte("day", daysAgo(13))
+      .then(({ data }) => setHistory((data ?? []) as { day: string; mood: number | null }[]));
+  }, [saved]);
 
   const load = useCallback(async (k: Checkin["kind"]) => {
     const { data } = await supabase.from("checkins").select("*").eq("day", toDay()).eq("kind", k).maybeSingle();
@@ -37,7 +49,10 @@ export default function CheckinPage() {
     const row = { day, kind, mood, energy, priorities, wins, journal, hours_worked };
     const { error } = await supabase.from("checkins").upsert(row, { onConflict: "user_id,day,kind" });
     setSaved({ ok: !error, text: error ? error.message : kind === "morning" ? "Locked in. Go win the day." : "Logged. Rest well, go again tomorrow." });
-    setTimeout(() => setSaved(null), 3500);
+    if (!error) {
+      success();
+      setTimeout(() => router.push("/"), 1400); // back to Today once it's saved
+    } else setTimeout(() => setSaved(null), 3500);
   }
 
   const set = <K extends keyof Checkin>(key: K, value: Checkin[K]) => setForm((f) => ({ ...f, [key]: value }));
@@ -49,7 +64,7 @@ export default function CheckinPage() {
           <button
             key={k}
             onClick={() => setKind(k)}
-            className={`flex-1 rounded-xl py-2 text-sm capitalize transition ${kind === k ? "btn" : "border border-zinc-300 dark:border-zinc-700"}`}
+            className={`chip flex-1 py-2 capitalize ${kind === k ? "chip-on" : ""}`}
           >
             {k === "morning" ? "🌅" : "🌙"} {k}
           </button>
@@ -81,13 +96,44 @@ export default function CheckinPage() {
 
         <Field label="Journal" value={form.journal} onChange={(v) => set("journal", v)} rows={5} placeholder="What's on your mind?" />
 
-        <button className="btn w-full py-3" onClick={save}>Save {kind} check-in</button>
+        <button className="btn-accent w-full !py-3" onClick={save}>Save {kind} check-in</button>
         {saved && (
           <div className="celebrate text-center">
             <p className="text-4xl">{saved.ok ? "🎉" : "⚠️"}</p>
-            <p className={`text-sm ${saved.ok ? "text-emerald-600" : "text-amber-600"}`}>{saved.text}</p>
+            <p className={`text-sm ${saved.ok ? "text-emerald-500" : "text-amber-500"}`}>{saved.text}</p>
           </div>
         )}
+      </div>
+
+      <MoodStrip history={history} />
+    </div>
+  );
+}
+
+// Mood over the last 14 days, as coloured bars with the face for the latest day.
+function MoodStrip({ history }: { history: { day: string; mood: number | null }[] }) {
+  const days = Array.from({ length: 14 }, (_, i) => {
+    const day = daysAgo(13 - i);
+    const vals = history.filter((c) => c.day === day && c.mood).map((c) => c.mood as number);
+    return { day, value: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null };
+  });
+  const last = [...days].reverse().find((m) => m.value !== null);
+  if (!last) return null;
+  return (
+    <div className="card">
+      <div className="mb-2 flex items-baseline justify-between">
+        <p className="label !mb-0">Mood, last 14 days</p>
+        <span className="text-2xl">{faceFor(MOOD, last.value)?.emoji}</span>
+      </div>
+      <div className="flex h-20 items-end gap-1">
+        {days.map((m) => (
+          <div
+            key={m.day}
+            title={`${m.day}: ${m.value ? faceFor(MOOD, m.value)?.label : "no check-in"}`}
+            className={`flex-1 rounded-t-md transition-all duration-700 ${m.value ? moodColor(m.value) : "bg-zinc-500/10"}`}
+            style={{ height: `${m.value ? m.value * 10 : 4}%` }}
+          />
+        ))}
       </div>
     </div>
   );

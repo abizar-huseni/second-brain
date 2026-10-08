@@ -1,6 +1,8 @@
 import { aiConfigured } from "@/lib/ai";
 import { bankRows } from "@/lib/bankRows";
 import { makeBrief, slotNow } from "@/lib/coach";
+import { makeFuel } from "@/lib/fuel";
+import { fmtClock, fmtDur, sleepReport } from "@/lib/sleep";
 import { addDays, nextDue, weekStart } from "@/lib/ldates";
 import { makePlan, type PlanKind } from "@/lib/plan";
 import { MILESTONES } from "@/lib/quit";
@@ -79,6 +81,10 @@ export async function POST(req: Request) {
       await sendPush(db, userId, { title: "☀️ Your morning brief", body: brief.headline });
       return "am brief";
     }],
+    ["fuel", hour >= 6 && !hasPlan("fuel", day), async () => {
+      const f = await makeFuel(db, day, userId);
+      return `fuel: ${f.theme}`;
+    }],
     ["day", hour >= 6 && hour < 20 && !hasPlan("day", day), plan("day", day)],
     ["year", hour >= 6 && !(planRows ?? []).some((p) => p.kind === "year"), plan("year", day.slice(0, 7))],
     ["week", hour >= 6 && !hasPlan("week", week), plan("week", week)],
@@ -141,6 +147,36 @@ export async function POST(req: Request) {
     if (peak !== null && n >= 2 && hour === (peak + 23) % 24 && new Date().getMinutes() >= 30) {
       await sendPush(db, userId, { title: "🛡️ Craving o'clock is coming", body: `Your cravings usually hit around ${peak}:00. Gum in your pocket, water nearby, and tap "I'm craving" if it comes.`, url: "/quit" });
       await setStatus(db, userId, "quit-warn", { ok: true });
+    }
+  }
+
+  // Bedtime: one nudge an hour before the suggested bedtime (screens off), using the body clock.
+  // A "night" runs noon to noon, so a 00:15 wind-down still counts as tonight.
+  const night = new Date(Date.now() - 12 * HOUR).toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+  const nudgedNight = (status?.find((x) => x.source === "sleep-nudge")?.info as { night?: string } | null)?.night;
+  if ((hour >= 19 || hour < 3) && nudgedNight !== night) {
+    const { data: rows } = await db
+      .from("health_samples")
+      .select("type, start_time, end_time, value")
+      .eq("user_id", userId)
+      .in("type", ["sleep", "awake", "sleep_manual"])
+      .gte("end_time", new Date(Date.now() - 21 * 24 * HOUR).toISOString());
+    const list = (rows ?? []) as { type: string; start_time: string; end_time: string; value: number }[];
+    const r = sleepReport(
+      list.filter((x) => x.type !== "awake").map((x) => ({ start: x.start_time, end: x.end_time, asleep_s: Number(x.value), manual: x.type === "sleep_manual" })),
+      list.filter((x) => x.type === "awake").map((x) => ({ start: x.start_time, end: x.end_time })),
+      { today: day },
+    );
+    const nowMin = hour * 60 + new Date().getMinutes();
+    // windDown can be after midnight (e.g. 00:15), so compare on a clock that starts at noon.
+    const fromNoon = (m: number) => (m - 720 + 1440) % 1440;
+    if (r.windDown !== null && r.bedTonight !== null && fromNoon(nowMin) >= fromNoon(r.windDown)) {
+      await sendPush(db, userId, {
+        title: "🌙 Wind down now",
+        body: `Screens off, bed by ${fmtClock(r.bedTonight)}.${r.debtMin > 60 ? ` You're carrying ${fmtDur(r.debtMin)} of sleep debt.` : ""} NHS: an hour without screens helps you fall asleep.`,
+        url: "/health#sleep",
+      });
+      await setStatus(db, userId, "sleep-nudge", { ok: true, info: { night } });
     }
   }
 

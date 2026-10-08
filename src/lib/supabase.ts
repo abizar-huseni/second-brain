@@ -7,4 +7,7 @@ const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC
 export const isConfigured = Boolean(url && key);
 
 // Placeholder values keep the build working before .env.local exists.
-export const supabase = createClient(url || "http://localhost", key || "missing");
+// Sessions live on the device and refresh themselves, so you only sign in once per device.
+export const supabase = createClient(url || "http://localhost", key || "missing", {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+});

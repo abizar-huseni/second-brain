@@ -8,6 +8,9 @@ Second Brain is a personal, non-commercial app used only by its owner.
 - **Email and calendar:** if the owner installs the Google Apps Script, it sends the sender, subject and first 200 characters of recent inbox emails, plus the next 7 days of calendar events. Emails are deleted after 30 days.
 - **AI coach:** when the owner opens the coach, a summary of the last 7 days (about me, check-ins, habits, tasks, upcoming expenses, goals, health, quit progress, money totals, email subjects, calendar, recent notes) is sent to the configured AI provider (Google Gemini by default) to write the advice. For UK users Google's paid-tier data terms apply, so prompts aren't used to train models.
 - **Web research:** if a Tavily key is set, the assistant sends short search queries (no names or account details) to Tavily to check public rules and costs.
+- **Backup AI providers:** if Gemini is busy, the same summary may go to a backup provider the owner switched on (NVIDIA, Groq, OpenRouter or Hugging Face).
+- **Sleep:** sleep start and end times and awake spells from the watch, Samsung export or manual taps.
+- **Laptop (Brain Link):** if the owner installs it, it reports battery, disk space and the names of shared folders. Documents are only read when the owner approves, and only from folders they chose; up to 20,000 characters are saved as a note.
 - **Notifications:** a browser push address is stored so the app can send reminders. Turning notifications off in the browser stops them.
 - **Sharing:** no data is sold, shared or used for advertising.
 - **Deletion:** the owner can delete any record in the app, or the whole database in Supabase.

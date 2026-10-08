@@ -5,7 +5,10 @@ import type { Session } from "@supabase/supabase-js";
 import { isConfigured, supabase } from "@/lib/supabase";
 import Nav from "./Nav";
 import QuickAdd from "./QuickAdd";
+import Orb from "./Orb";
 
+// You sign in once per device. The session is kept on the device and refreshed quietly in the background,
+// so the app opens straight to Today from then on.
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
 
@@ -19,56 +22,99 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!isConfigured) {
     return (
-      <Centered>
-        <h1 className="text-xl font-semibold">Almost there</h1>
-        <p className="text-sm text-zinc-500">
-          Add your Supabase URL and anon key to <code>.env.local</code> (see the README), then restart.
-        </p>
-      </Centered>
+      <Shell>
+        <Centered>
+          <h1 className="text-xl font-semibold">Almost there</h1>
+          <p className="text-sm muted">
+            Add your Supabase URL and anon key to <code>.env.local</code> (see the README), then restart.
+          </p>
+        </Centered>
+      </Shell>
     );
   }
-  if (session === undefined) return <Centered><p className="text-zinc-500">Loading…</p></Centered>;
-  if (!session) return <Login />;
+  if (session === undefined)
+    return (
+      <Shell>
+        <Centered>
+          <div className="mx-auto">
+            <Orb size={88} />
+          </div>
+        </Centered>
+      </Shell>
+    );
+  if (!session)
+    return (
+      <Shell>
+        <Login />
+      </Shell>
+    );
 
   return (
-    <>
+    <Shell>
       <Nav />
-      <main className="mx-auto max-w-3xl px-4 pb-28 pt-6 sm:pb-10">{children}</main>
+      <main className="mx-auto max-w-3xl px-4 pb-36 pt-5 sm:pb-12 sm:pt-8">{children}</main>
       <QuickAdd />
+    </Shell>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <div className="aurora" aria-hidden />
+      {children}
     </>
   );
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-3 px-4">{children}</div>;
+  return <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-3 px-5">{children}</div>;
 }
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function submit(mode: "in" | "up") {
+  async function signIn(e: React.FormEvent) {
+    e.preventDefault();
     setBusy(true);
-    setError("");
-    const { error } =
-      mode === "in"
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
-    if (error) setError(error.message);
-    else if (mode === "up") setError("Account created. Check your email to confirm, then sign in.");
+    setMsg("");
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) setMsg(error.message === "Invalid login credentials" ? "That email and password don't match." : error.message);
+    setBusy(false);
+  }
+
+  async function emailLink() {
+    if (!email.trim()) return setMsg("Type your email first.");
+    setBusy(true);
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false, emailRedirectTo: location.origin } });
+    setMsg(error ? error.message : "Check your email and tap the link. You'll stay signed in on this device.");
     setBusy(false);
   }
 
   return (
     <Centered>
-      <h1 className="text-2xl font-semibold">Second Brain</h1>
-      <input className="input" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <input className="input" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-      <button className="btn" disabled={busy} onClick={() => submit("in")}>Sign in</button>
-      <button className="text-sm text-zinc-500" disabled={busy} onClick={() => submit("up")}>Create account</button>
-      {error && <p className="text-sm text-amber-600">{error}</p>}
+      <div className="stagger space-y-5">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Orb size={96} />
+          <h1 className="text-3xl font-semibold tracking-tight">Second Brain</h1>
+          <p className="text-sm muted">Sign in once on this device. It remembers you.</p>
+        </div>
+        {/* A real form with autocomplete, so your phone offers to save and fill the password. */}
+        <form onSubmit={signIn} className="space-y-3">
+          <input className="input" type="email" name="email" autoComplete="username email" inputMode="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input className="input" type="password" name="password" autoComplete="current-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <button className="btn-accent w-full !py-3" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+        <button type="button" className="w-full text-sm muted underline-offset-4 hover:underline" disabled={busy} onClick={emailLink}>
+          Email me a sign-in link instead
+        </button>
+        {msg && <p className="rise text-center text-sm text-amber-500">{msg}</p>}
+      </div>
     </Centered>
   );
 }

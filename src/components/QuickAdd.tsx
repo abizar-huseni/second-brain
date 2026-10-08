@@ -90,12 +90,12 @@ export default function QuickAdd() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Quick add"
-        className="fixed bottom-20 right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-3xl text-white shadow-lg shadow-emerald-500/30 transition active:scale-90 sm:bottom-6"
+        className="fixed bottom-[calc(max(env(safe-area-inset-bottom),0.75rem)+5.5rem)] right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-cyan-400 text-3xl text-zinc-950 shadow-xl shadow-cyan-500/30 transition active:scale-90 sm:bottom-8 sm:right-8"
       >
         +
       </button>
       {open && (
-        <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center" onClick={close}>
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center" onClick={close}>
           <div className="sheet w-full max-w-md space-y-3 rounded-t-3xl bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-3xl dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto h-1 w-10 rounded-full bg-zinc-300 sm:hidden dark:bg-zinc-700" />
             <div className="flex gap-1 rounded-2xl bg-zinc-100 p-1 dark:bg-zinc-800">

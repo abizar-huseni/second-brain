@@ -4,13 +4,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { chat, parseJson } from "./ai";
 import { buildContext } from "./coach";
 import { researchConfigured, search, type Finding } from "./research";
+import { validateAction } from "./agentActions";
 
 export type InsightAction =
   | { type: "goal"; title: string; area?: string; target?: number; unit?: string; deadline?: string }
   | { type: "habit"; name: string; kind?: "good" | "bad" }
   | { type: "note"; body: string }
   | { type: "task"; title: string; day?: string; must?: boolean }
-  | { type: "bill"; name: string; amount: number; next_due: string; every?: string };
+  | { type: "bill"; name: string; amount: number; next_due: string; every?: string }
+  | { type: "laptop"; action: string; params: Record<string, unknown> };
 
 export type Insight = {
   id?: string;
@@ -45,6 +47,8 @@ Rules:
   {"type": "bill", "name", "amount", "next_due": "YYYY-MM-DD", "every": "week|month|year|once"}  (an upcoming expense to track)
   {"type": "habit", "name", "kind": "good|bad"}
   {"type": "note", "body"}
+  {"type": "laptop", "action": "screen_timeout|sleep_timeout|notify|open_url|system_status|find_files|tidy_folder", "params": {...}}  (only if a laptop is connected; a small fix done on their laptop after they approve)
+- For health points, cite the trusted guidance inline like [nhs:sleep-hours].
 - Cite research by its [number] in "sources".
 Reply with only JSON:
 {"insights": [{"kind": "deadline|money|health|growth|risk|opportunity", "title": "max 8 words", "body": "1-3 sentences", "priority": 1,
@@ -116,5 +120,9 @@ function validAction(a: unknown): InsightAction | null {
   }
   if (x.type === "habit" && typeof x.name === "string") return { type: "habit", name: x.name.slice(0, 80), kind: x.kind === "bad" ? "bad" : "good" };
   if (x.type === "note" && typeof x.body === "string") return { type: "note", body: x.body.slice(0, 1000) };
+  if (x.type === "laptop") {
+    const v = validateAction(x.action, x.params);
+    if (v.ok) return { type: "laptop", action: v.action, params: v.params };
+  }
   return null;
 }

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Connections from "@/components/Connections";
 import NotifyButton from "@/components/NotifyButton";
+import LaptopCard from "@/components/LaptopCard";
+import AIStatus from "@/components/AIStatus";
 import { DEFAULT_NAME } from "@/lib/useAssistant";
 
 const PROMPT = `Situation: visa type, end date, how many hours you're allowed to work, key deadlines
@@ -38,9 +40,10 @@ export default function MePage() {
 
   return (
     <div className="stagger space-y-4">
+      <h1 className="text-[1.7rem] font-semibold tracking-tight">Me</h1>
       <div className="card space-y-2">
         <p className="label">👤 About me</p>
-        <p className="text-xs text-zinc-500">Your assistant reads this before every brief, plan and insight. Rules and deadlines here (like visa work limits) are treated as hard limits.</p>
+        <p className="text-xs muted">Your assistant reads this before every brief, plan and insight. Rules and deadlines here (like visa work limits) are treated as hard limits.</p>
         <textarea className="input" rows={10} placeholder={PROMPT} value={about} onChange={(e) => setAbout(e.target.value)} />
         <div>
           <label className="label">Your assistant&apos;s name</label>
@@ -52,6 +55,10 @@ export default function MePage() {
         {saved && <p className="celebrate text-center text-sm text-emerald-600">{saved}</p>}
       </div>
 
+      <AIStatus />
+
+      <LaptopCard />
+
       <div className="card">
         <NotifyButton />
       </div>
@@ -59,7 +66,7 @@ export default function MePage() {
       <Connections />
 
       <div className="card flex items-center justify-between">
-        <p className="truncate text-sm text-zinc-500">{email}</p>
+        <p className="truncate text-sm muted">{email}</p>
         <button className="chip" onClick={() => supabase.auth.signOut()}>
           Sign out
         </button>
