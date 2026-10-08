@@ -18,6 +18,7 @@ Built in public by [@abizar-huseni](https://github.com/abizar-huseni) while lear
 - **Notes**: dump thoughts in one tap, group them with #tags, search them
 - **Mind map**: every #tag becomes a branch around you, sized by how often you think about it
 - **Health**: import your Samsung Health export (Galaxy Watch) and see steps, sleep, exercise, stress and heart rate over 7/30/90 days
+- **Bank statements**: drop in a Lloyds or HSBC CSV and every transaction is imported and auto-categorised (no duplicates on re-import)
 - **Money**: monthly in/out with category breakdown, UK payslips (tax, NI, pension, student loan, £/hour), and a debt tracker with payoff progress and monthly interest cost
 
 ## Stack
@@ -32,7 +33,7 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 
 ## Setup
 
-1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`, then `supabase/003_health.sql`.
+1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`, then `supabase/003_health.sql`, then `supabase/004_bank.sql`.
 2. **Keys**: copy `.env.example` to `.env.local` and paste your Project URL and anon key from Project Settings > API. Never commit `.env.local`.
 3. **Run locally**:
    ```bash

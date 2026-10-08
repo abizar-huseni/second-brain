@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toDay } from "@/lib/dates";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, gbp } from "@/lib/money";
+import { parseStatement } from "@/lib/statements";
 import Progress from "@/components/Progress";
 import type { Debt, Payslip, Transaction } from "@/lib/types";
 
@@ -53,7 +54,8 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
   const [note, setNote] = useState("");
 
   const month = toDay().slice(0, 7);
-  const thisMonth = tx.filter((t) => t.day.startsWith(month));
+  // Moving money between your own accounts isn't income or spending.
+  const thisMonth = tx.filter((t) => t.day.startsWith(month) && t.category !== "transfer");
   const income = thisMonth.filter((t) => t.kind === "income").reduce((s, t) => s + Number(t.amount), 0);
   const spent = thisMonth.filter((t) => t.kind === "expense").reduce((s, t) => s + Number(t.amount), 0);
 
@@ -67,6 +69,11 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
     await supabase.from("transactions").insert({ kind, amount: value, category, note: note.trim() || null, day: toDay() });
     setAmount("");
     setNote("");
+    reload();
+  }
+
+  async function recategorize(t: Transaction, category: string) {
+    await supabase.from("transactions").update({ category }).eq("id", t.id);
     reload();
   }
 
@@ -111,6 +118,8 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
         <button className="btn w-full" onClick={add}>Add {kind}</button>
       </div>
 
+      <StatementImport reload={reload} />
+
       {cats.length > 0 && (
         <div className="card space-y-2">
           <p className="label">Where it went</p>
@@ -127,8 +136,14 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
         {tx.slice(0, 30).map((t) => (
           <li key={t.id} className="flex items-center gap-2 py-2 text-sm">
             <span className="w-14 text-xs text-zinc-500">{new Date(t.day + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
-            <span className="capitalize">{t.category}</span>
-            {t.note && <span className="truncate text-zinc-500">· {t.note}</span>}
+            <select
+              value={t.category}
+              onChange={(e) => recategorize(t, e.target.value)}
+              className="rounded bg-transparent text-sm capitalize outline-none"
+            >
+              {(t.kind === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <span className="min-w-0 truncate text-zinc-500">{t.note || t.description}</span>
             <span className={`ml-auto tabular-nums ${t.kind === "income" ? "text-emerald-600" : ""}`}>
               {t.kind === "income" ? "+" : "−"}{gbp(t.amount)}
             </span>
@@ -138,6 +153,48 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
         {!tx.length && <li className="py-2 text-center text-sm text-zinc-500">Nothing logged yet.</li>}
       </ul>
     </>
+  );
+}
+
+function StatementImport({ reload }: { reload: () => void }) {
+  const [account, setAccount] = useState("Lloyds");
+  const [status, setStatus] = useState("");
+
+  async function importFile(file: File | undefined) {
+    if (!file) return;
+    setStatus("Reading…");
+    const { bank, rows } = parseStatement(await file.text(), account);
+    if (!rows.length) return setStatus("Couldn't find transactions in that file. Make sure it's a CSV export.");
+    const before = await supabase.from("transactions").select("id", { count: "exact", head: true });
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error } = await supabase
+        .from("transactions")
+        .upsert(rows.slice(i, i + 200), { onConflict: "user_id,external_id", ignoreDuplicates: true });
+      if (error) return setStatus(`Error: ${error.message}`);
+    }
+    const after = await supabase.from("transactions").select("id", { count: "exact", head: true });
+    const added = (after.count ?? 0) - (before.count ?? 0);
+    setStatus(`${bank} file: ${added} new transactions added, ${rows.length - added} already there.`);
+    reload();
+  }
+
+  return (
+    <div className="card space-y-2">
+      <p className="label">Import bank statement (CSV)</p>
+      <div className="flex gap-2">
+        {["Lloyds", "HSBC"].map((a) => (
+          <button key={a} onClick={() => setAccount(a)} className={`flex-1 rounded-lg py-1.5 text-sm ${account === a ? "bg-zinc-200 dark:bg-zinc-700" : "border border-zinc-300 dark:border-zinc-700"}`}>
+            {a}
+          </button>
+        ))}
+      </div>
+      <label className="btn block cursor-pointer text-center">
+        Choose {account} CSV
+        <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { importFile(e.target.files?.[0]); e.target.value = ""; }} />
+      </label>
+      {status && <p className="text-sm text-zinc-500">{status}</p>}
+      <p className="text-xs text-zinc-500">Re-importing the same file is safe. Wrong category? Tap it in the list below to change it.</p>
+    </div>
   );
 }
 

@@ -49,6 +49,9 @@ export type Transaction = {
   amount: number;
   category: string;
   note: string | null;
+  description?: string | null;
+  account?: string | null;
+  source?: string;
 };
 
 export type Payslip = {
