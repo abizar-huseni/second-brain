@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Connections from "@/components/Connections";
+import DevicesSetup from "@/components/DevicesSetup";
 import NotifyButton from "@/components/NotifyButton";
 import { DEFAULT_NAME } from "@/lib/useAssistant";
 
@@ -57,6 +58,8 @@ export default function MePage() {
       </div>
 
       <Connections />
+
+      <DevicesSetup />
 
       <div className="card flex items-center justify-between">
         <p className="truncate text-sm text-zinc-500">{email}</p>

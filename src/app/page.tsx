@@ -9,6 +9,7 @@ import { ENERGY, faceFor, MOOD, moodColor } from "@/lib/moods";
 import Progress from "@/components/Progress";
 import CoachCard from "@/components/CoachCard";
 import InsightsCard from "@/components/InsightsCard";
+import DevicesCard from "@/components/DevicesCard";
 import ResurfaceCard from "@/components/ResurfaceCard";
 import QuitCard from "@/components/QuitCard";
 import TodayPlan from "@/components/TodayPlan";
@@ -169,6 +170,7 @@ export default function Today() {
 
       <p className="eyebrow">Now</p>
       <TodayPlan />
+      <DevicesCard />
 
       <div className="card space-y-3">
         <div className="flex items-center justify-between">

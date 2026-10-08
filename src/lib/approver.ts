@@ -8,7 +8,7 @@ const DB = "second-brain-approver";
 const STORE = "keys";
 const ALG = { name: "ECDSA", namedCurve: "P-256" } as const;
 
-export type Approver = { id: string; pub: JsonWebKey; keys: CryptoKeyPair };
+export type Approver = { id: string; name: string; pub: JsonWebKey; keys: CryptoKeyPair };
 
 // Same canonical form as the agent: sorted keys, no spaces.
 export function stable(v: unknown): string {
@@ -20,7 +20,7 @@ export function stable(v: unknown): string {
 export const approvalMessage = (a: { id: string; device_id: string; action: string; params: unknown; approved_at: string }) =>
   stable(["second-brain-approval-v1", a.id, a.device_id, a.action, a.params ?? {}, a.approved_at]);
 
-const b64url = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+export const b64url = (buf: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 export async function keyId(pub: JsonWebKey) {
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${pub.x}.${pub.y}`));
@@ -45,7 +45,7 @@ function idb<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest
   });
 }
 
-function browserName() {
+export function browserName() {
   const ua = navigator.userAgent;
   const os = /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /iPhone|iPad/.test(ua) ? "iPhone" : /Mac/.test(ua) ? "Mac" : "Linux";
   const br = /Edg\//.test(ua) ? "Edge" : /SamsungBrowser/.test(ua) ? "Samsung Internet" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : "Safari";
@@ -67,7 +67,7 @@ export async function getApprover(): Promise<Approver> {
     const { error } = await supabase.from("approver_keys").insert({ id, name: browserName(), public_key: pub });
     if (error && !/duplicate/i.test(error.message)) throw new Error(error.message);
   }
-  return { id, pub, keys };
+  return { id, name: browserName(), pub, keys };
 }
 
 export async function signApproval(a: { id: string; device_id: string; action: string; params: unknown }) {
