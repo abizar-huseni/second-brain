@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Connections from "@/components/Connections";
+import LinkDevice from "@/components/LinkDevice";
 import NotifyButton from "@/components/NotifyButton";
 import { DEFAULT_NAME } from "@/lib/useAssistant";
 
@@ -32,7 +33,7 @@ export default function MePage() {
 
   async function save() {
     const { error } = await supabase.from("profile").upsert({ about, assistant_name: name.trim() || DEFAULT_NAME, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-    setSaved(error ? (error.message.includes("profile") ? "Run supabase/006_live.sql first." : error.message) : "Saved. Your assistant reads this every time.");
+    setSaved(error ? (error.message.includes("profile") ? "The database is still setting up. It finishes on the next deploy." : error.message) : "Saved. Your assistant reads this every time.");
     setTimeout(() => setSaved(""), 3500);
   }
 
@@ -54,6 +55,10 @@ export default function MePage() {
 
       <div className="card">
         <NotifyButton />
+      </div>
+
+      <div className="card">
+        <LinkDevice />
       </div>
 
       <Connections />

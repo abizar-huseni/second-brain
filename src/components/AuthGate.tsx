@@ -11,7 +11,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
     if (!isConfigured) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    linkFromQr().then(() => supabase.auth.getSession().then(({ data }) => setSession(data.session)));
     const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => data.subscription.unsubscribe();
   }, []);
@@ -38,6 +38,18 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   return <Shell email={session.user.email ?? ""}>{children}</Shell>;
 }
 
+// Scanning "Link a device" on a signed-in device opens /pair#pair=<one-time code>. Sign in with it,
+// then wipe it from the address bar. The session then stays on this device until you sign out.
+async function linkFromQr() {
+  const code = new URLSearchParams(location.hash.slice(1)).get("pair");
+  if (!code) return;
+  history.replaceState(null, "", location.pathname);
+  const { data } = await supabase.auth.getSession();
+  if (data.session) return;
+  const { error } = await supabase.auth.verifyOtp({ token_hash: code, type: "magiclink" });
+  if (error) alert(`That code didn't work (${error.message}). Make a new one on your other device.`);
+}
+
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-3 px-4">{children}</div>;
 }
@@ -55,7 +67,7 @@ function Login() {
       mode === "in"
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password });
-    if (error) setError(error.message);
+    if (error) setError(/database error|sign-ups are closed/i.test(error.message) ? "Sign-ups are closed: this Second Brain already has its owner." : error.message);
     else if (mode === "up") setError("Account created. Check your email to confirm, then sign in.");
     setBusy(false);
   }
@@ -68,6 +80,7 @@ function Login() {
       <button className="btn" disabled={busy} onClick={() => submit("in")}>Sign in</button>
       <button className="text-sm text-zinc-500" disabled={busy} onClick={() => submit("up")}>Create account</button>
       {error && <p className="text-sm text-amber-600">{error}</p>}
+      <p className="pt-4 text-center text-xs text-zinc-500">Signed in on another device? Open Me → Link a device there and scan the code with this one. No password needed.</p>
     </Centered>
   );
 }

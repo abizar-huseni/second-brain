@@ -82,17 +82,29 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 
 ## Setup
 
-1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`, then `supabase/003_health.sql`, then `supabase/004_bank.sql`, then `supabase/005_live_health.sql`, then `supabase/006_live.sql`.
+1. **Supabase**: create a free project at [supabase.com](https://supabase.com).
 2. **Keys**: copy `.env.example` to `.env.local` and paste your Project URL and anon key from Project Settings > API. Never commit `.env.local`.
 3. **Run locally**:
    ```bash
    npm install
    npm run dev
    ```
-   Open http://localhost:3000 and create your account.
-4. **Lock it down**: once your account exists, turn off new sign-ups in Supabase (Authentication > Sign In / Providers > "Allow new users to sign up").
-5. **Deploy**: import this repo on [vercel.com](https://vercel.com), add the same two env variables, deploy.
+   Open http://localhost:3000 and create your account. The first account is the owner; sign-ups close after it.
+4. **Deploy**: import this repo on [vercel.com](https://vercel.com) and add Supabase through Vercel's Supabase integration (it adds every key on its own), then deploy.
+5. **Database**: nothing to paste. Every deploy runs `scripts/migrate.mjs`, which applies any new or changed file in `supabase/` and remembers what it applied. It uses `POSTGRES_URL_NON_POOLING` from the Supabase integration; without the integration, add `SUPABASE_DB_URL` in Vercel (Supabase → Connect → Session pooler). Run it yourself with `npm run migrate`.
 6. **Install on your phone**: open the Vercel URL in Chrome > menu > "Add to Home screen". On a laptop, click the install icon in the address bar.
+7. **Sign in on other devices**: on a device that's already signed in, Me → Link a device shows a QR code. Scan it with the other device's camera and it's signed in, no password. Each device stays signed in until you sign out.
+
+### Security
+
+- **One owner.** The first account owns the app. `supabase/007_lockdown.sql` blocks every later sign-up, and every server route (AI, bank, heartbeat, webhooks) checks it's you, so nobody who finds the URL can use your bank or AI keys.
+- **Row Level Security** on every table: the browser key only ever sees your own rows. Server-only secrets (`app_secrets`) can't be read with a browser login at all.
+- **Sync token** (Me page) is sent only in the `x-sync-token` header, never in a URL, so it doesn't end up in logs.
+- **Security headers** on every page: a Content Security Policy (the app only talks to itself and Supabase), no framing, HTTPS only, and no caching of API answers.
+
+### Adding SQL
+
+Add a new numbered file in `supabase/` (e.g. `008_something.sql`). It must be safe to run twice: `create table if not exists`, `add column if not exists`, `drop policy if exists` before `create policy`. It's applied on the next production deploy (preview deploys never touch the database); if it fails, the deploy stops and the live app keeps running the previous version.
 
 ## Live bank sync (optional, ~£3/month)
 
@@ -114,7 +126,7 @@ UK banks don't offer free open banking access to individuals, so this uses [Lunc
 
 Samsung Health has no web API, but it writes to Android's Health Connect. The open-source [HC Webhook](https://github.com/mcnaveen/health-connect-webhook) app reads Health Connect and posts it here. The Play Store version is paid; the same app is free as `app-foss-release.apk` on its [GitHub releases](https://github.com/mcnaveen/health-connect-webhook/releases).
 
-1. Run `supabase/005_live_health.sql`. Make sure `SUPABASE_SERVICE_ROLE_KEY` is set in Vercel (server-only, never `NEXT_PUBLIC_`).
+1. Make sure `SUPABASE_SERVICE_ROLE_KEY` is set in Vercel (server-only, never `NEXT_PUBLIC_`).
 2. Samsung Health → Settings → Health Connect: allow it to share steps, sleep, heart rate and exercise.
 3. In the app: Me → Create my sync token.
 4. In HC Webhook: grant Health Connect access, add a webhook with the URL and the `x-sync-token` header shown on the Health page, pick an interval.

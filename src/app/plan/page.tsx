@@ -45,7 +45,7 @@ export default function PlanPage() {
     setTasks(t.data ?? []);
     setBills(b.data ?? []);
     setPlans(p.data ?? []);
-    if (t.error?.message.includes("tasks")) setMsg("Run supabase/006_live.sql to switch on plans and tasks.");
+    if (t.error?.message.includes("tasks")) setMsg("Plans and tasks are still setting up. They finish on the next deploy.");
   }, [today]);
 
   useEffect(() => {

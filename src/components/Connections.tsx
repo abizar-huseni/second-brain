@@ -22,7 +22,7 @@ export default function Connections() {
       .from("sync_tokens")
       .select("token")
       .maybeSingle()
-      .then(({ data, error }) => (error ? setMsg("Run supabase/005_live_health.sql first.") : setToken(data?.token ?? null)));
+      .then(({ data, error }) => (error ? setMsg("The database is still setting up. It finishes on the next deploy.") : setToken(data?.token ?? null)));
     supabase
       .from("sync_status")
       .select("*")
@@ -63,7 +63,7 @@ export default function Connections() {
       </div>
 
       <Source icon="💓" name="Heartbeat" status={get("heartbeat")} hint="Every 30 min: syncs banks and writes your coach brief.">
-        <p>Run <code>supabase/006_live.sql</code> in Supabase SQL Editor once. That&apos;s it.</p>
+        <p>Already on: the database sets it up on deploy. Nothing to do.</p>
       </Source>
 
       <Source icon="⌚" name="Watch" status={get("watch")} hint="Steps, sleep, heart rate as they happen.">
