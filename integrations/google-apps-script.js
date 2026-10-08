@@ -6,7 +6,7 @@
  * 1. Go to https://script.google.com → New project. Delete what's there and paste this whole file.
  * 2. ⚙️ Project Settings → Script properties → add:
  *      SB_URL   = https://second-brain-lac-tau.vercel.app/api/ingest/google
- *      SB_TOKEN = your sync token (dashboard → Me page)
+ *      SB_TOKEN = the Gmail + Calendar key (dashboard → Me page → Live connections)
  * 3. Back in the editor, pick "sync" at the top and press Run. Approve the access Google asks for.
  * 4. ⏰ Triggers → Add trigger → function "sync", event source "Time-driven", "Minutes timer", "Every 10 minutes".
  *

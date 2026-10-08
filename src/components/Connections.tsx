@@ -9,9 +9,13 @@ type Status = { source: string; last_ok: string | null; last_error: string | nul
 const SCRIPT_URL = "https://github.com/abizar-huseni/second-brain/blob/main/integrations/google-apps-script.js";
 const APK_URL = "https://github.com/mcnaveen/health-connect-webhook/releases";
 
+type Kind = "watch" | "google";
+
 // Everything that keeps the dashboard updated while your devices are off, with setup steps and live status.
+// The watch and the Google script each have their own key, so a leaked one can only do one job.
 export default function Connections() {
-  const [token, setToken] = useState<string | null>(null);
+  const [shared, setShared] = useState<string | null>(null);
+  const [keys, setKeys] = useState<Partial<Record<Kind, string>>>({});
   const [status, setStatus] = useState<Status[]>([]);
   const [origin, setOrigin] = useState("");
   const [msg, setMsg] = useState("");
@@ -22,48 +26,55 @@ export default function Connections() {
       .from("sync_tokens")
       .select("token")
       .maybeSingle()
-      .then(({ data, error }) => (error ? setMsg("The database is still setting up. It finishes on the next deploy.") : setToken(data?.token ?? null)));
+      .then(({ data }) => setShared(data?.token ?? null));
+    supabase
+      .from("source_keys")
+      .select("source, token")
+      .then(({ data, error }) => {
+        if (error) setMsg("The database is still setting up. It finishes on the next deploy.");
+        else setKeys(Object.fromEntries((data ?? []).map((k) => [k.source, k.token])));
+      });
     supabase
       .from("sync_status")
       .select("*")
       .then(({ data }) => setStatus(data ?? []));
   }, []);
 
-  async function generate() {
-    if (token && !confirm("Make a new token? The old one stops working, so you'll need to update the phone app and Google script.")) return;
-    const fresh = crypto.randomUUID().replaceAll("-", "");
-    const { error } = await supabase.from("sync_tokens").upsert({ token: fresh, created_at: new Date().toISOString() }, { onConflict: "user_id" });
+  async function makeKey(kind: Kind) {
+    const where = kind === "watch" ? "the HC Webhook app" : "the Google script";
+    if ((keys[kind] || shared) && !confirm(`Make a new key for this? Then paste it into ${where}: the old one stops working there.`)) return;
+    const fresh = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
+    const { error } = await supabase.from("source_keys").upsert({ source: kind, token: fresh, created_at: new Date().toISOString() }, { onConflict: "user_id,source" });
     if (error) return setMsg(`Error: ${error.message}`);
-    setToken(fresh);
-    setMsg("");
+    setKeys((k) => ({ ...k, [kind]: fresh }));
+    setMsg(`New key made. Paste it into ${where} now.`);
   }
 
   const copy = (text: string) => navigator.clipboard.writeText(text).then(() => setMsg("Copied."));
   const get = (source: string) => status.find((s) => s.source === source);
 
-  if (!token) {
+  const KeyField = ({ kind, label }: { kind: Kind; label: string }) => {
+    const value = keys[kind] ?? shared;
     return (
-      <div className="card space-y-2">
-        <p className="label">🔌 Live connections</p>
-        <p className="text-sm">One secret token lets your watch, Gmail and the server update your dashboard on their own.</p>
-        <button className="btn w-full" onClick={generate}>
-          Create my sync token
+      <div className="space-y-1">
+        {value ? <Field label={`${label} (keep secret)`} value={value} onCopy={() => copy(value)} /> : null}
+        {!keys[kind] && shared && <p className="text-xs text-zinc-500">This is your old shared key. It still works, but a key just for this is safer.</p>}
+        <button className="chip text-xs" onClick={() => makeKey(kind)}>
+          {keys[kind] ? "Make a new key" : shared ? "Give it its own key" : "Create key"}
         </button>
-        {msg && <p className="text-sm text-zinc-500">{msg}</p>}
       </div>
     );
-  }
+  };
 
   return (
     <div className="card space-y-4">
       <div>
         <p className="label">🔌 Live connections</p>
-        <Field label="Your sync token (keep secret)" value={token} onCopy={() => copy(token)} />
         {msg && <p className="mt-1 text-xs text-zinc-500">{msg}</p>}
       </div>
 
       <Source icon="💓" name="Heartbeat" status={get("heartbeat")} hint="Every 30 min: syncs banks and writes your coach brief.">
-        <p>Already on: the database sets it up on deploy. Nothing to do.</p>
+        <p>Already on: the database sets it up on deploy, with its own secret. Nothing to do.</p>
       </Source>
 
       <Source icon="⌚" name="Watch" status={get("watch")} hint="Steps, sleep, heart rate as they happen.">
@@ -76,7 +87,7 @@ export default function Connections() {
         </p>
         <Field label="URL" value={`${origin}/api/health/webhook`} onCopy={() => copy(`${origin}/api/health/webhook`)} />
         <Field label="Header" value="x-sync-token" onCopy={() => copy("x-sync-token")} />
-        <p className="text-xs text-zinc-500">Header value: your sync token above.</p>
+        <KeyField kind="watch" label="Header value" />
       </Source>
 
       <Source icon="📧" name="Gmail + Calendar" status={get("google")} hint="New emails and your week, every 10 min.">
@@ -88,7 +99,7 @@ export default function Connections() {
           and follow the 4 steps at the top. Script properties:
         </p>
         <Field label="SB_URL" value={`${origin}/api/ingest/google`} onCopy={() => copy(`${origin}/api/ingest/google`)} />
-        <p className="text-xs text-zinc-500">SB_TOKEN: your sync token above.</p>
+        <KeyField kind="google" label="SB_TOKEN" />
       </Source>
 
       <Source icon="🏦" name="Banks" status={get("bank")} hint="Lloyds + HSBC every 2 hours via Lunch Flow.">
