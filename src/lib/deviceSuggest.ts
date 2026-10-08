@@ -6,7 +6,7 @@ import { fmtClock, fmtDur, type SleepReport } from "./sleep";
 
 // The only actions the brain may ever suggest. Never commands, file reads or trusting a browser:
 // this list is checked in code before anything is saved, whatever the reason for the suggestion.
-export const AI_ACTIONS = new Set(["screen_timeout", "clean_temp", "sleep_now", "brightness", "vault_sync"]);
+export const AI_ACTIONS = new Set(["screen_timeout", "clean_temp", "sleep_now", "brightness"]);
 
 type Info = { screen_off_min?: number; disk_free?: number; disk_total?: number; battery?: number; charging?: boolean };
 type Device = { id: string; name: string; kind: string; last_seen: string | null; info: Info | null };
