@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { extractTags } from "@/lib/notes";
 import MindMap from "@/components/MindMap";
-import type { Note } from "@/lib/types";
+import { NOTE_KIND, type Note } from "@/lib/types";
+import { callApi } from "@/lib/api";
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -24,9 +25,11 @@ export default function NotesPage() {
 
   async function add() {
     if (!body.trim()) return;
-    await supabase.from("notes").insert({ body: body.trim(), tags: extractTags(body) });
+    const { data } = await supabase.from("notes").insert({ body: body.trim(), tags: extractTags(body) }).select("id").single();
     setBody("");
     load();
+    // The assistant files it in the background (rule, fact, idea...), then we refresh.
+    if (data) callApi("/api/remember", { id: data.id }).then(load).catch(() => {});
   }
 
   async function togglePin(n: Note) {
@@ -51,7 +54,7 @@ export default function NotesPage() {
         <textarea
           className="input"
           rows={3}
-          placeholder="Dump a thought. Use #tags to group it, e.g. #career #idea"
+          placeholder="Dump a thought. Your brain files it (rule, fact, idea, worry...) and brings it back when it matters."
           value={body}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && add()}
@@ -89,6 +92,12 @@ export default function NotesPage() {
       <ul className="space-y-2">
         {shown.map((n) => (
           <li key={n.id} className="card">
+            {(n.title || (n.kind && NOTE_KIND[n.kind])) && (
+              <p className="mb-1 flex items-center gap-2 text-xs">
+                {n.kind && NOTE_KIND[n.kind] && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-800 dark:bg-violet-500/20 dark:text-violet-300">{NOTE_KIND[n.kind]}</span>}
+                {n.title && <span className="font-medium">{n.title}</span>}
+              </p>
+            )}
             <p className="whitespace-pre-line text-sm">{n.body}</p>
             <div className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
               {n.tags.map((t) => (

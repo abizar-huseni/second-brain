@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { daysAgo, toDay } from "@/lib/dates";
 import { goalProgress } from "@/lib/goals";
 import { ENERGY, faceFor, MOOD, moodColor } from "@/lib/moods";
 import Progress from "@/components/Progress";
 import CoachCard from "@/components/CoachCard";
+import InsightsCard from "@/components/InsightsCard";
+import ResurfaceCard from "@/components/ResurfaceCard";
+import QuitCard from "@/components/QuitCard";
+import TodayPlan from "@/components/TodayPlan";
+import NotifyButton from "@/components/NotifyButton";
+import Confetti from "@/components/Confetti";
 import type { Checkin, Goal, Habit, HabitLog } from "@/lib/types";
 import type { HealthDay } from "@/lib/samsung";
 import { timeAgo } from "@/lib/time";
@@ -22,6 +28,8 @@ const MAIL_RANK: Record<string, number> = { money: 0, uni: 1, jobs: 2, other: 3 
 
 export default function Today() {
   const [data, setData] = useState<Data | null>(null);
+  const [party, setParty] = useState(false);
+  const lastScore = useRef<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -29,7 +37,7 @@ export default function Today() {
         supabase.from("goals").select("*"),
         supabase.from("habits").select("*").eq("archived", false).order("created_at"),
         supabase.from("habit_logs").select("habit_id, day").eq("day", toDay()),
-        supabase.from("checkins").select("*").gte("day", daysAgo(13)).order("day"),
+        supabase.from("checkins").select("*").gte("day", daysAgo(60)).order("day"),
         supabase.from("health_days").select("*").order("day", { ascending: false }).limit(1),
         supabase.from("inbox").select("*").eq("unread", true).gte("received_at", new Date(Date.now() - 2 * 86400000).toISOString()).order("received_at", { ascending: false }).limit(30),
         supabase.from("events").select("*").gte("starts_at", new Date(Date.now() - 3600000).toISOString()).lte("starts_at", new Date(Date.now() + 2 * 86400000).toISOString()).order("starts_at").limit(4),
@@ -47,6 +55,19 @@ export default function Today() {
       });
     })();
   }, []);
+
+  // Confetti the moment the day hits 100%.
+  useEffect(() => {
+    if (!data) return;
+    const s = dayScore(data);
+    if (lastScore.current !== null && lastScore.current < 100 && s === 100) {
+      setParty(true);
+      const t = setTimeout(() => setParty(false), 1800);
+      lastScore.current = s;
+      return () => clearTimeout(t);
+    }
+    lastScore.current = s;
+  }, [data]);
 
   if (!data) {
     return (
@@ -68,9 +89,12 @@ export default function Today() {
   const hoursWeek = data.checkins.filter((c) => c.day >= daysAgo(6)).reduce((sum, c) => sum + Number(c.hours_worked ?? 0), 0);
   const big = data.goals.filter((g) => !g.parent_id);
 
-  // Day score: both check-ins plus every good habit.
-  const total = 2 + good.length;
-  const score = Math.round((((morning ? 1 : 0) + (night ? 1 : 0) + goodDone) / total) * 100);
+  const score = dayScore(data);
+
+  // Check-in streak: consecutive days with any check-in, counting from today (or yesterday if today is still open).
+  const checked = new Set(data.checkins.map((c) => c.day));
+  let streak = 0;
+  for (let i = checked.has(today) ? 0 : 1; checked.has(daysAgo(i)); i++) streak++;
 
   async function toggle(h: Habit) {
     const has = done(h);
@@ -89,6 +113,14 @@ export default function Today() {
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 5 ? "Still up?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const sky =
+    hour >= 5 && hour < 11
+      ? "from-amber-500 via-orange-500 to-rose-500"
+      : hour >= 11 && hour < 17
+        ? "from-emerald-600 via-teal-600 to-cyan-700"
+        : hour >= 17 && hour < 22
+          ? "from-indigo-600 via-violet-700 to-purple-800"
+          : "from-zinc-900 via-slate-900 to-indigo-950";
   const sleep = data.health?.sleep_min;
   const mail = [...data.mail].sort((a, b) => MAIL_RANK[a.category] - MAIL_RANK[b.category]).slice(0, 3);
   const live = [
@@ -99,10 +131,12 @@ export default function Today() {
 
   return (
     <div className="stagger space-y-4">
-      <div className="card flex items-center justify-between gap-4 bg-gradient-to-br from-zinc-900 to-zinc-700 text-white dark:from-emerald-900 dark:to-zinc-900">
+      {party && <Confetti />}
+      <div className={`card flex items-center justify-between gap-4 border-0 bg-gradient-to-br text-white shadow-lg ${sky}`}>
         <div>
           <p className="text-sm text-white/70">{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</p>
           <h1 className="text-2xl font-semibold">{greeting}</h1>
+          {streak > 0 && <p className="mt-1 inline-block rounded-full bg-white/15 px-2 py-0.5 text-xs">🔥 {streak}-day check-in streak</p>}
           <p className="mt-1 text-sm text-white/80">{score === 100 ? "Perfect day. Earned it." : score >= 50 ? "Good momentum. Finish strong." : "Day's still yours. Start small."}</p>
           <Link href="/me" className="mt-2 flex gap-2 text-xs text-white/70">
             {live.map((x) => (
@@ -116,10 +150,20 @@ export default function Today() {
         <Ring value={score} />
       </div>
 
+      <QuitCard />
+
       <div className="grid grid-cols-2 gap-3">
         <CheckinTile label="Morning" icon="🌅" checkin={morning} />
         <CheckinTile label="Night" icon="🌙" checkin={night} />
       </div>
+
+      <TodayPlan />
+
+      <InsightsCard />
+
+      <ResurfaceCard />
+
+      <NotifyButton compact />
 
       <CoachCard />
 
@@ -236,6 +280,15 @@ export default function Today() {
       </div>
     </div>
   );
+}
+
+// Day score: both check-ins plus every good habit.
+function dayScore(d: Data) {
+  const today = toDay();
+  const good = d.habits.filter((h) => h.kind === "good");
+  const done = good.filter((h) => d.logs.some((l) => l.habit_id === h.id)).length;
+  const checks = ["morning", "night"].filter((k) => d.checkins.some((c) => c.day === today && c.kind === k)).length;
+  return Math.round(((checks + done) / (2 + good.length)) * 100);
 }
 
 function Ring({ value }: { value: number }) {

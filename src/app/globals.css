@@ -84,3 +84,25 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { animation: none !important; transition: none !important; }
 }
+
+@keyframes confetti {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4) rotate(0); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), 70vh) scale(1) rotate(var(--r)); }
+}
+.confetti { animation: confetti 1.6s cubic-bezier(0.2, 0.6, 0.4, 1) both; }
+@keyframes sheet {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+.sheet { animation: sheet 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Box breathing for the craving SOS: in 4s, hold 4s, out 4s, hold 4s. */
+@keyframes breathe {
+  0% { transform: scale(0.55); }
+  25% { transform: scale(1); }
+  50% { transform: scale(1); }
+  75% { transform: scale(0.55); }
+  100% { transform: scale(0.55); }
+}
+.breathe { animation: breathe 16s ease-in-out infinite; }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isConfigured, supabase } from "@/lib/supabase";
 import Nav from "./Nav";
+import QuickAdd from "./QuickAdd";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -32,7 +33,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-3xl px-4 pb-24 pt-6 sm:pb-10">{children}</main>
+      <main className="mx-auto max-w-3xl px-4 pb-28 pt-6 sm:pb-10">{children}</main>
+      <QuickAdd />
     </>
   );
 }

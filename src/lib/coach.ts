@@ -44,7 +44,7 @@ export async function buildContext(db: SupabaseClient, userId?: string): Promise
   const monthStart = `${today.slice(0, 8)}01`;
   const from = (table: string, cols = "*") => (userId ? db.from(table).select(cols).eq("user_id", userId) : db.from(table).select(cols));
   const nowIso = new Date().toISOString();
-  const [c, h, l, g, hd, t, d, p, n, pr, ib, ev, st] = await Promise.all([
+  const [c, h, l, g, hd, t, d, p, n, pr, ib, ev, st, ins, tk, bl, qu, cr] = await Promise.all([
     from("checkins").gte("day", ago(6)).order("day"),
     from("habits").eq("archived", false),
     from("habit_logs", "habit_id, day").gte("day", ago(60)),
@@ -53,11 +53,16 @@ export async function buildContext(db: SupabaseClient, userId?: string): Promise
     from("transactions", "day, kind, amount, category").gte("day", monthStart),
     from("debts"),
     from("payslips").order("pay_date", { ascending: false }).limit(1),
-    from("notes", "body, created_at").order("created_at", { ascending: false }).limit(8),
+    from("notes", "body, created_at, kind, title").order("created_at", { ascending: false }).limit(150),
     from("profile", "about").maybeSingle(),
     from("inbox", "from_name, subject, category, unread, received_at").gte("received_at", new Date(Date.now() - 86400000).toISOString()).order("received_at", { ascending: false }).limit(15),
     from("events", "title, starts_at, all_day, location").gte("starts_at", nowIso).lte("starts_at", new Date(Date.now() + 2 * 86400000).toISOString()).order("starts_at").limit(10),
     from("sync_status", "info").eq("source", "bank").maybeSingle(),
+    from("insights", "title, body").eq("status", "new").order("priority").limit(6),
+    from("tasks", "title, day, must").eq("done", false).or(`day.is.null,day.lte.${ago(-7)}`).order("day", { nullsFirst: false }).limit(25),
+    from("bills", "name, amount, next_due, every").lte("next_due", ago(-60)).order("next_due").limit(25),
+    from("quits", "id, name, started_at, longest_hours, why").eq("active", true),
+    from("cravings", "quit_id, at, strength, trigger, outcome").gte("at", new Date(Date.now() - 14 * 86400000).toISOString()),
   ]);
   const checkins = (c.data ?? []) as unknown as Checkin[];
   const habits = (h.data ?? []) as unknown as Habit[];
@@ -67,7 +72,7 @@ export async function buildContext(db: SupabaseClient, userId?: string): Promise
   const tx = (t.data ?? []) as unknown as Transaction[];
   const debts = (d.data ?? []) as unknown as Debt[];
   const slip = ((p.data as unknown[] | null)?.[0] ?? null) as Payslip | null;
-  const notes = (n.data ?? []) as unknown as Pick<Note, "body" | "created_at">[];
+  const notes = (n.data ?? []) as unknown as (Pick<Note, "body" | "created_at"> & { kind: string | null; title: string | null })[];
   const about = (pr.data as { about?: string } | null)?.about?.trim();
   const mail = (ib.data ?? []) as unknown as { from_name: string; subject: string; category: string; unread: boolean }[];
   const events = (ev.data ?? []) as unknown as { title: string; starts_at: string; all_day: boolean; location: string | null }[];
@@ -81,6 +86,39 @@ export async function buildContext(db: SupabaseClient, userId?: string): Promise
     "\n## About the user (their own words)",
     about ? cut(about, 2500) : "Not written yet. Suggest filling in the About me page.",
   ];
+
+  const flagged = (ins.data ?? []) as unknown as { title: string; body: string }[];
+  if (flagged.length) {
+    out.push("\n## Open things you already flagged");
+    for (const f of flagged) out.push(`- ${f.title}: ${cut(f.body, 200)}`);
+  }
+
+  const quits = (qu.data ?? []) as unknown as { id: string; name: string; started_at: string; longest_hours: number; why: string }[];
+  const cravings = (cr.data ?? []) as unknown as { quit_id: string; at: string; strength: number | null; trigger: string | null; outcome: string }[];
+  if (quits.length) {
+    out.push("\n## Quitting (support this hard: it's their most important fight right now)");
+    for (const q of quits) {
+      const hrs = (Date.now() - Date.parse(q.started_at)) / 3600000;
+      const mine = cravings.filter((x) => x.quit_id === q.id);
+      const count = (k: string) => mine.filter((x) => x.trigger === k).length;
+      const triggers = [...new Set(mine.map((x) => x.trigger).filter(Boolean))].map((k) => `${k} ${count(k!)}`).join(", ");
+      const hours = mine.map((x) => Number(new Date(x.at).toLocaleString("en-GB", { timeZone: TZ, hour: "2-digit", hour12: false })));
+      const peak = hours.length ? [...new Set(hours)].sort((a, b) => hours.filter((x) => x === b).length - hours.filter((x) => x === a).length)[0] : null;
+      out.push(
+        `${q.name}: clean ${Math.floor(hrs / 24)}d ${Math.floor(hrs % 24)}h (longest ${Math.round(Number(q.longest_hours) / 24)}d). Cravings in 14 days: ${mine.length}, beaten ${mine.filter((x) => x.outcome === "beaten").length}, slips ${mine.filter((x) => x.outcome === "slipped").length}.${triggers ? ` Triggers: ${triggers}.` : ""}${peak !== null ? ` Peak hour ${peak}:00.` : ""}${q.why ? ` Their why: "${cut(q.why, 200)}"` : ""}`,
+      );
+    }
+  }
+
+  const tasks = (tk.data ?? []) as unknown as { title: string; day: string | null; must: boolean }[];
+  out.push("\n## Their open tasks");
+  if (!tasks.length) out.push("None added.");
+  for (const x of tasks) out.push(`- ${x.must ? "[MUST] " : ""}${cut(x.title, 120)}${x.day ? ` (${x.day < today ? `overdue since ${x.day}` : x.day})` : " (someday)"}`);
+
+  const bills = (bl.data ?? []) as unknown as { name: string; amount: number; next_due: string; every: string }[];
+  out.push("\n## Upcoming expenses, next 60 days");
+  if (!bills.length) out.push("None added. Rent, phone, subscriptions and big one-offs should be added on the Plan page.");
+  for (const b of bills) out.push(`- ${b.next_due}: ${cut(b.name, 60)} £${Number(b.amount).toFixed(2)} (${b.every === "once" ? "one-off" : `every ${b.every}`})`);
 
   if (events.length) {
     out.push("\n## Calendar, next 48 hours");
@@ -155,9 +193,16 @@ export async function buildContext(db: SupabaseClient, userId?: string): Promise
   }
   if (slip) out.push(`Last payslip ${slip.pay_date}: net £${Number(slip.net).toFixed(0)}${slip.hours ? ` for ${slip.hours}h` : ""}`);
 
-  if (notes.length) {
-    out.push("\n## Recent notes (newest first)");
-    for (const x of notes) out.push(`- ${cut(x.body, 160)}`);
+  // Their dumped thoughts: rules and facts always apply; ideas, goals and worries are recent context.
+  const standing = notes.filter((x) => x.kind === "rule" || x.kind === "fact").slice(0, 30);
+  if (standing.length) {
+    out.push("\n## Things they told you to remember (follow the rules every time)");
+    for (const x of standing) out.push(`- [${x.kind}] ${cut(x.body, 220)}`);
+  }
+  const recent = notes.filter((x) => x.kind !== "rule" && x.kind !== "fact").slice(0, 12);
+  if (recent.length) {
+    out.push("\n## Recent thoughts they dumped (newest first)");
+    for (const x of recent) out.push(`- ${x.kind ? `[${x.kind}] ` : ""}${String(x.created_at).slice(0, 10)}: ${cut(x.body, 200)}`);
   }
   return out.join("\n");
 }

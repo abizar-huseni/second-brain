@@ -4,26 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toDay } from "@/lib/dates";
 import type { Brief } from "@/lib/coach";
+import { callApi, NOT_CONFIGURED } from "@/lib/api";
+import { useAssistantName } from "@/lib/useAssistant";
 
 const AREA_ICON: Record<string, string> = { growth: "🌱", fitness: "💪", mind: "🧠", money: "💷", work: "💼" };
 
 // One brief per morning and one per evening, saved in the database (the heartbeat usually writes it before you wake up).
 const slot = () => (new Date().getHours() < 15 ? "am" : "pm");
 
-async function callCoach(body: object) {
-  const { data } = await supabase.auth.getSession();
-  const res = await fetch("/api/coach", {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${data.session?.access_token ?? ""}` },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (res.status === 501) throw new Error("not_configured");
-  if (!res.ok) throw new Error(json.error ?? `Error ${res.status}`);
-  return json;
-}
-
 export default function CoachCard() {
+  const name = useAssistantName();
   const [brief, setBrief] = useState<Brief | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -39,7 +29,7 @@ export default function CoachCard() {
     setLoading(true);
     setError("");
     try {
-      const { brief } = await callCoach({ mode: "brief" });
+      const { brief } = await callApi<{ brief: Brief }>("/api/coach", { mode: "brief" });
       setBrief(brief);
     } catch (e) {
       setError((e as Error).message);
@@ -56,9 +46,9 @@ export default function CoachCard() {
     setAsking(true);
     setAnswer("");
     try {
-      setAnswer((await callCoach({ mode: "ask", question })).answer);
+      setAnswer((await callApi<{ answer: string }>("/api/coach", { mode: "ask", question })).answer);
     } catch (e) {
-      setAnswer((e as Error).message === "not_configured" ? "Switch on your coach first (see above)." : (e as Error).message);
+      setAnswer((e as Error).message === "not_configured" ? "Switch on the AI first (see above)." : (e as Error).message);
     }
     setAsking(false);
   }
@@ -66,8 +56,8 @@ export default function CoachCard() {
   if (error === "not_configured") {
     return (
       <div className="card space-y-1 border-dashed">
-        <p className="label">🤖 Your AI coach</p>
-        <p className="text-sm">Switch it on for free: get a key at aistudio.google.com, add it in Vercel as AI_API_KEY, then redeploy.</p>
+        <p className="label">🧠 {name}</p>
+        <p className="text-sm">{NOT_CONFIGURED}</p>
       </div>
     );
   }
@@ -75,7 +65,7 @@ export default function CoachCard() {
   return (
     <div className="card space-y-3 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-500/10 dark:to-zinc-900">
       <div className="flex items-center justify-between">
-        <p className="label mb-0">🤖 Your coach</p>
+        <p className="label mb-0">🧠 {name}&apos;s brief</p>
         <button onClick={() => load(true)} disabled={loading} className="text-xs text-zinc-500 disabled:opacity-50">
           {loading ? "Thinking…" : "↻ New brief"}
         </button>
@@ -115,7 +105,7 @@ export default function CoachCard() {
           ask();
         }}
       >
-        <input className="input" placeholder="Ask your coach anything…" value={question} onChange={(e) => setQuestion(e.target.value)} />
+        <input className="input" placeholder={`Ask ${name} anything…`} value={question} onChange={(e) => setQuestion(e.target.value)} />
         <button className="btn shrink-0" disabled={asking}>
           {asking ? "…" : "Ask"}
         </button>

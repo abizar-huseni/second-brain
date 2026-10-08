@@ -13,6 +13,42 @@ Built in public by [@abizar-huseni](https://github.com/abizar-huseni) while lear
 - **Today dashboard**: check-in status, habit score, hours this week, 14-day mood chart, goal progress
 - **Installable** on phone and laptop as a PWA
 
+## A brain that thinks for you
+
+The assistant (default name "Brain", rename it on the Me page) runs on the server every 30 minutes and works without you opening the app:
+
+| When | What it does |
+|---|---|
+| 6am | **Thinks ahead on its own**: reads everything (about me, check-ins, tasks, bills, money, health, email, calendar, quit progress), optionally searches the web, and writes "Brain noticed" insights with numbers and dates. Each comes with a one-tap action: add a goal, task, upcoming expense, habit or note. |
+| 7am | Morning brief, pushed to your phone |
+| Daytime | Today's plan if missing, a 12-month plan (monthly), the week plan (Sunday evening), the money plan (weekly: safe-to-spend per day, save per week, debt order) |
+| 6pm | Evening brief |
+| 8pm | **Tomorrow's plan**: 3 non-negotiables, should-dos, shape of the day around your calendar, spending limit |
+| 9:30pm | Nudge if the night check-in is missing |
+
+Everything it suggests is a suggestion: it drafts, you tap to accept.
+
+**Web research (optional, free):** add `TAVILY_API_KEY` in Vercel (1,000 searches/month free at tavily.com). The assistant then plans up to 3 searches each morning to check rules, costs and deadlines, and cites them.
+
+**Phone notifications:** Me → Notifications → Turn on. Keys are generated and stored in Supabase automatically.
+
+## Thought dump
+
+For the brilliant thought that's gone a minute later:
+- **+ → 💭 Thought**: type or tap the mic and talk (free, built into Chrome). Long-press the app icon for "Dump a thought", or share text/links from any app to Second Brain.
+- The assistant files each one straight away as a **rule** ("always go for free options"), **fact** about you, **idea**, **goal**, **worry** or **reminder**, and tells you in one line how it'll use it.
+- Rules and facts go into every brief, plan and insight from then on. Recent ideas and worries are context.
+- **Remember this?** on Today brings back one old idea a day. Act on it, keep it, or let it go.
+- "Remind me on Friday..." gets a phone notification that morning.
+
+## Quitting (nicotine, junk food...)
+
+The Quit page and the card on Today:
+- Live "clean for" clock, money saved, and the NHS quit timeline.
+- **I'm craving** opens an SOS screen: a 3-minute box-breathing timer (cravings last a few minutes), your own "why", money saved, the next milestone, tactics for where you are (bar, friends vaping, stress, after food...), and "Talk me through it" from the assistant.
+- Log beaten or slipped. A slip restarts the clock and keeps your record.
+- It learns your triggers and peak hours, warns you 30 minutes before your usual craving time, and celebrates milestones as they pass.
+
 ## AI coach (free)
 
 The Today page has a coach that reads your last 7 days (check-ins, habits, goals, watch data, money, notes) and gives you a headline, 3 things to do today, one win and one warning. You can also ask it anything about your data.
@@ -94,7 +130,8 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 - [x] **v3 part 1**: live UK bank sync (Lunch Flow), live Galaxy Watch sync (Health Connect + HC Webhook)
 - [x] **v3 part 2**: AI coach (daily brief + ask anything) on a free model, emoji check-ins, redesigned Today
 - [x] **v3 part 3**: live mode: server heartbeat, Gmail + Calendar feed, "About me" for the coach
-- [ ] **v3 part 4**: notes from Obsidian, morning push notification, Sunday review
+- [x] **v3 part 4**: self-directed insights, day/week/year/money plans, tasks + upcoming expenses, quit system, thought dump with voice + memory, push notifications, quick add
+- [ ] **v3 part 5**: notes from Obsidian, Sunday review
 - [ ] **v4**: weekly review, correlations (sleep vs mood vs productivity) in Python
 
 ## Build log
@@ -108,3 +145,4 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 | 2026-10-08 | Live Galaxy Watch sync through Health Connect |
 | 2026-10-08 | Free AI coach (Gemini), emoji mood + energy, animated Today page |
 | 2026-10-08 | Live mode: heartbeat, Gmail + Calendar feed, Me page |
+| 2026-10-08 | The assistant thinks and plans on its own; quit system with craving SOS; quick add |

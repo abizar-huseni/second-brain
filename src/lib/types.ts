@@ -40,7 +40,12 @@ export type Note = {
   tags: string[];
   pinned: boolean;
   created_at: string;
+  kind?: string | null; // filed by the assistant: rule | fact | idea | goal | worry | reminder | other | archived
+  title?: string | null;
+  remind_on?: string | null;
 };
+
+export const NOTE_KIND: Record<string, string> = { rule: "📏 rule", fact: "📌 fact", idea: "💡 idea", goal: "🎯 goal", worry: "😟 worry", reminder: "⏰ reminder", archived: "🍃 let go" };
 
 export type Transaction = {
   id: string;
