@@ -13,12 +13,23 @@ Built in public by [@abizar-huseni](https://github.com/abizar-huseni) while lear
 - **Today dashboard**: check-in status, habit score, hours this week, 14-day mood chart, goal progress
 - **Installable** on phone and laptop as a PWA
 
+## AI coach (free)
+
+The Today page has a coach that reads your last 7 days (check-ins, habits, goals, watch data, money, notes) and gives you a headline, 3 things to do today, one win and one warning. You can also ask it anything about your data.
+
+It uses any OpenAI-compatible API. The default is Google Gemini's free tier:
+
+1. Get a free key at [aistudio.google.com](https://aistudio.google.com) (no card needed).
+2. In Vercel, add `AI_API_KEY`, then redeploy.
+
+Optional: `AI_MODEL` (default `gemini-3.8-flash`) and `AI_BASE_URL` to switch provider, e.g. Groq: `AI_BASE_URL=https://api.groq.com/openai/v1`, `AI_MODEL=openai/gpt-oss-120b`. Briefs are cached per morning/evening on each device to stay inside free limits.
+
 ## What v2 adds (so far)
 
 - **Notes**: dump thoughts in one tap, group them with #tags, search them
 - **Mind map**: every #tag becomes a branch around you, sized by how often you think about it
 - **Health**: import your Samsung Health export (Galaxy Watch) and see steps, sleep, exercise, stress and heart rate over 7/30/90 days
-- **Live watch sync**: Galaxy Watch data flows Samsung Health → Health Connect → the free HC Webhook Android app → this app, so steps, sleep, heart rate and workouts update on their own
+- **Live watch sync**: Galaxy Watch data flows Samsung Health → Health Connect → the open-source HC Webhook Android app → this app, so steps, sleep, heart rate and workouts update on their own
 - **Bank statements**: drop in a Lloyds or HSBC CSV and every transaction is imported and auto-categorised (no duplicates on re-import)
 - **Live bank sync**: Lloyds and HSBC (and most UK banks) through [Lunch Flow](https://www.lunchflow.app)'s personal API; balances and transactions sync with one tap
 - **Money**: monthly in/out with category breakdown, UK payslips (tax, NI, pension, student loan, £/hour), and a debt tracker with payoff progress and monthly interest cost
@@ -58,7 +69,7 @@ UK banks don't offer free open banking access to individuals, so this uses [Lunc
 
 ## Live watch sync (optional, free)
 
-Samsung Health has no web API, but it writes to Android's Health Connect. The [HC Webhook](https://play.google.com/store/apps/details?id=com.hcwebhook.app) app reads Health Connect and posts it here.
+Samsung Health has no web API, but it writes to Android's Health Connect. The open-source [HC Webhook](https://github.com/mcnaveen/health-connect-webhook) app reads Health Connect and posts it here. The Play Store version is paid; the same app is free as `app-foss-release.apk` on its [GitHub releases](https://github.com/mcnaveen/health-connect-webhook/releases).
 
 1. Run `supabase/005_live_health.sql`. Make sure `SUPABASE_SERVICE_ROLE_KEY` is set in Vercel (server-only, never `NEXT_PUBLIC_`).
 2. Samsung Health → Settings → Health Connect: allow it to share steps, sleep, heart rate and exercise.
@@ -74,7 +85,8 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 - [x] **v2 part 2a**: Samsung Health CSV import + Health page
 - [ ] **v2 part 2b**: Google Keep import (Takeout), payslip PDF upload
 - [x] **v3 part 1**: live UK bank sync (Lunch Flow), live Galaxy Watch sync (Health Connect + HC Webhook)
-- [ ] **v3 part 2**: AI coach (daily brief + "what next"), Gmail summary
+- [x] **v3 part 2**: AI coach (daily brief + ask anything) on a free model, emoji check-ins, redesigned Today
+- [ ] **v3 part 3**: always-on Jarvis (scheduled job search + CV matching, weekly review), Gmail summary
 - [ ] **v4**: weekly review, correlations (sleep vs mood vs productivity) in Python
 
 ## Build log
@@ -86,3 +98,4 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 | 2026-10-08 | Samsung Health import: 545 days of watch data in one click |
 | 2026-10-08 | Bank statement import + live UK bank sync via Lunch Flow |
 | 2026-10-08 | Live Galaxy Watch sync through Health Connect |
+| 2026-10-08 | Free AI coach (Gemini), emoji mood + energy, animated Today page |

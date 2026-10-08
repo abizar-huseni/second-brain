@@ -37,8 +37,11 @@ export default function LiveSync({ onRefresh }: { onRefresh: () => void }) {
     <div className="card space-y-2">
       <p className="label">Live sync from your watch</p>
       <p className="text-xs text-zinc-500">
-        Watch → Samsung Health → Health Connect → HC Webhook app → here. Install HC Webhook from the Play Store, give it Health Connect access,
-        then add a webhook with this URL and header.
+        Watch → Samsung Health → Health Connect → HC Webhook app → here. Install the free{" "}
+        <a className="underline" href="https://github.com/mcnaveen/health-connect-webhook/releases" target="_blank" rel="noreferrer">
+          app-foss-release.apk
+        </a>{" "}
+        from GitHub (the Play Store version is paid), give it Health Connect access, then add a webhook with this URL and header.
       </p>
       {token ? (
         <div className="space-y-2 text-sm">
