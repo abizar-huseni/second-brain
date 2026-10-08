@@ -153,3 +153,53 @@ export function buildHealthDays(files: { name: string; text: string }[]): Health
     }))
     .sort((a, b) => a.day.localeCompare(b.day));
 }
+
+// Sleep sessions with exact times (and awake spells from the sleep stage file), so the body clock
+// and wake-up pattern work on your history too. Stage 40001 = awake.
+export type SleepSample = { type: "sleep" | "awake"; start_time: string; end_time: string; value: number };
+
+export function buildSleepSamples(files: { name: string; text: string }[]): SleepSample[] {
+  const iso = (utc: string) => {
+    const t = Date.parse(utc.replace(" ", "T") + "Z");
+    return isNaN(t) ? null : new Date(t).toISOString();
+  };
+  const sessions: { start: string; end: string }[] = [];
+  const awakes: { start: string; end: string }[] = [];
+  for (const f of files) {
+    const t = parseSamsungCsv(f.text);
+    const col = (name: string) => getter(t, name);
+    if (/\.shealth\.sleep\.\d/.test(f.name)) {
+      const [start, end] = ["start_time", "end_time"].map(col);
+      for (const r of t.rows) {
+        const s = iso(start(r));
+        const e = iso(end(r));
+        if (s && e && Date.parse(e) > Date.parse(s) && Date.parse(e) - Date.parse(s) < 16 * 3600e3) sessions.push({ start: s, end: e });
+      }
+    } else if (/sleep_stage\.\d/.test(f.name)) {
+      const [start, end, stage] = ["start_time", "end_time", "stage"].map(col);
+      for (const r of t.rows) {
+        const s = iso(start(r));
+        const e = iso(end(r));
+        if (s && e && stage(r) === "40001" && Date.parse(e) - Date.parse(s) >= 60e3) awakes.push({ start: s, end: e });
+      }
+    }
+  }
+  const out: SleepSample[] = [];
+  const seen = new Set<string>();
+  for (const s of sessions) {
+    const key = `${s.start}|${s.end}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const b = Date.parse(s.start);
+    const w = Date.parse(s.end);
+    const awake = awakes.filter((a) => Date.parse(a.start) >= b && Date.parse(a.end) <= w).reduce((t, a) => t + (Date.parse(a.end) - Date.parse(a.start)), 0);
+    out.push({ type: "sleep", start_time: s.start, end_time: s.end, value: Math.round((w - b - awake) / 1000) });
+  }
+  for (const a of awakes) {
+    const key = `a|${a.start}|${a.end}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ type: "awake", start_time: a.start, end_time: a.end, value: Math.round((Date.parse(a.end) - Date.parse(a.start)) / 1000) });
+  }
+  return out;
+}

@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { daysAgo } from "@/lib/dates";
-import { buildHealthDays, type HealthDay } from "@/lib/samsung";
+import { buildHealthDays, buildSleepSamples, type HealthDay } from "@/lib/samsung";
 import Bars from "@/components/Bars";
+import SleepPanel from "@/components/SleepPanel";
 import Link from "next/link";
 
 const hm = (mins: number) => `${Math.floor(mins / 60)}h ${String(Math.round(mins % 60)).padStart(2, "0")}m`;
@@ -17,6 +18,7 @@ export default function HealthPage() {
   const [days, setDays] = useState<HealthDay[]>([]);
   const [status, setStatus] = useState("");
   const [range, setRange] = useState(30);
+  const [sleepKey, setSleepKey] = useState(0);
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("health_days").select("*").gte("day", daysAgo(365)).order("day");
@@ -41,7 +43,19 @@ export default function HealthPage() {
       const { error } = await supabase.from("health_days").upsert(chunk, { onConflict: "user_id,day" });
       if (error) return setStatus(`Error: ${error.message}`);
     }
-    setStatus(`Imported ${rows.length} days (${rows[0].day} to ${rows[rows.length - 1].day}).`);
+    // Exact sleep times too, so the body clock and wake-ups work on your history.
+    const sleep = buildSleepSamples(files);
+    let sleepNote = "";
+    for (let i = 0; i < sleep.length; i += 500) {
+      const { error } = await supabase.from("health_samples").upsert(sleep.slice(i, i + 500), { onConflict: "user_id,type,start_time,end_time", ignoreDuplicates: true });
+      if (error) {
+        sleepNote = " Sleep times will import after the database update (supabase/008_sleep.sql).";
+        break;
+      }
+    }
+    const nights = sleep.filter((x) => x.type === "sleep").length;
+    setStatus(`Imported ${rows.length} days (${rows[0].day} to ${rows[rows.length - 1].day})${nights && !sleepNote ? ` and ${nights} nights of sleep` : ""}.${sleepNote}`);
+    setSleepKey((k) => k + 1);
     load();
   }
 
@@ -58,6 +72,8 @@ export default function HealthPage() {
 
   return (
     <div className="stagger space-y-4">
+      <SleepPanel key={sleepKey} />
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat icon="👟" label="Steps / day (7d)" value={steps7 === null ? "–" : Math.round(steps7).toLocaleString("en-GB")} />
         <Stat icon="😴" label="Sleep / night (7d)" value={sleep7 === null ? "–" : hm(sleep7)} />

@@ -58,7 +58,36 @@ It uses any OpenAI-compatible API. The default is Google Gemini's free tier:
 1. Get a free key at [aistudio.google.com](https://aistudio.google.com) (no card needed).
 2. In Vercel, add `AI_API_KEY`, then redeploy.
 
-Optional: `AI_MODEL` (default `gemini-3.8-flash`) and `AI_BASE_URL` to switch provider, e.g. Groq: `AI_BASE_URL=https://api.groq.com/openai/v1`, `AI_MODEL=openai/gpt-oss-120b`. Briefs are cached per morning/evening on each device to stay inside free limits.
+**It never stalls on "model is busy" (503).** Every call walks a chain until something answers: the main Gemini model, then other Gemini models (each has its own free quota), then any free backup you add. Add at least one backup in Vercel:
+
+| Key | Where (free) | Notes |
+|---|---|---|
+| `NVIDIA_API_KEY` | [build.nvidia.com](https://build.nvidia.com) | 40 requests a minute; gpt-oss-120b, Nemotron, DeepSeek |
+| `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) | Very fast; about 1,000 requests a day per model |
+| `OPENROUTER_API_KEY` | [openrouter.ai](https://openrouter.ai) | Small daily cap, last resort |
+| `HF_TOKEN` | [huggingface.co](https://huggingface.co/settings/tokens) | Tiny monthly credit, last resort |
+
+Me → Brain power shows which ones are connected and which one answered last. Keys go in Vercel only: never paste them in a chat, an issue or the code.
+
+Optional: `AI_MODEL` (default `gemini-3.8-flash`), `AI_FALLBACK_MODELS` (comma list), `AI_BASE_URL`, and `NVIDIA_MODEL` / `GROQ_MODEL` / `OPENROUTER_MODEL` / `HF_MODEL`. Briefs are cached per morning/evening on each device to stay inside free limits.
+
+**Grounded advice:** health tips come from a short list of checked NHS and GOV.UK facts (`src/lib/nhs.ts`). The assistant cites them, and the app shows each one as a small NHS link.
+
+## Sleep debt and body clock
+
+Body → Sleep works it out from the Galaxy Watch (live sync or the Samsung export), or from two taps: **Going to sleep** and **I'm up**.
+
+- **Sleep debt** over the last 7 nights against your need (NHS: 7 to 9 hours; default 8, change it in one tap)
+- **Body clock**: your usual bedtime and wake time, how regular they are, your chronotype (from free-day sleep, the MCTQ method) and social jetlag
+- **Wake-ups in the night** from the watch's awake stages, so lying awake no longer counts as sleep
+- **Tonight's bedtime**, with up to 45 minutes extra to pay back debt, and a "wind down" push an hour before
+- Fix a night by hand if the watch missed it
+
+The database part is `supabase/008_sleep.sql`, applied on deploy like every other migration.
+
+## Mindset fuel
+
+Every morning the assistant picks one theme from what is going on in your life and gives you a quote, a book's 3 big ideas (no reading needed), a video to watch and a podcast episode to listen to. Swipe through it on Today. It avoids repeating the last two weeks, and with `TAVILY_API_KEY` it links straight to real videos and episodes.
 
 ## What v2 adds (so far)
 
@@ -170,3 +199,4 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 | 2026-10-08 | Free AI coach (Gemini), emoji mood + energy, animated Today page |
 | 2026-10-08 | Live mode: heartbeat, Gmail + Calendar feed, Me page |
 | 2026-10-08 | The assistant thinks and plans on its own; quit system with craving SOS; quick add |
+| 2026-10-08 | AI never stalls (free backup chain), sleep debt + body clock, mindset fuel, NHS-grounded tips |
