@@ -20,6 +20,7 @@ import type { HealthDay } from "@/lib/samsung";
 import { timeAgo } from "@/lib/time";
 import { skyFor } from "@/lib/feel";
 import FuelCard from "@/components/FuelCard";
+import DeadlineCountdown from "@/components/DeadlineCountdown";
 import { SleepTile } from "@/components/SleepPanel";
 
 type Mail = { external_id: string; from_name: string; subject: string; category: string; unread: boolean; received_at: string };
@@ -169,6 +170,8 @@ export default function Today() {
           <CheckinPill label="Night" icon="🌙" checkin={night} />
         </div>
       </section>
+
+      <DeadlineCountdown />
 
       {/* Evenings, sleep moves to the top: it's what matters next. */}
       {bedtime && <SleepTile />}

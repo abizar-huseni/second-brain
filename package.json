@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
     "next": "15.5.27",
+    "pdfjs-dist": "6.3.289",
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "react": "19.1.0",

@@ -9,13 +9,15 @@ import { countable, parseStatement } from "@/lib/statements";
 import { cachedAccounts, lastSynced, syncBanks, type BankAccount } from "@/lib/bankClient";
 import Progress from "@/components/Progress";
 import { useSubTabs } from "@/lib/subtabs";
+import WorkHours, { type Logged } from "@/components/WorkHours";
+import { guessPayslip, pdfLines } from "@/lib/payslipPdf";
 import type { Debt, Payslip, Transaction } from "@/lib/types";
 
-type Tab = "month" | "banks" | "payslips" | "debts";
+type Tab = "month" | "banks" | "work" | "debts";
 const TABS: { key: Tab; label: string }[] = [
   { key: "month", label: "This month" },
   { key: "banks", label: "Banks" },
-  { key: "payslips", label: "Payslips" },
+  { key: "work", label: "Work" },
   { key: "debts", label: "Debts" },
 ];
 
@@ -25,13 +27,16 @@ export default function MoneyPage() {
   const [tx, setTx] = useState<Transaction[]>([]);
   const [slips, setSlips] = useState<Payslip[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
+  const [logged, setLogged] = useState<Logged>([]);
 
   const load = useCallback(async () => {
-    const [t, p, d] = await Promise.all([
+    const [t, p, d, c] = await Promise.all([
       supabase.from("transactions").select("*").order("day", { ascending: false }).order("created_at", { ascending: false }).limit(500),
       supabase.from("payslips").select("*").order("pay_date", { ascending: false }),
       supabase.from("debts").select("*").order("created_at"),
+      supabase.from("checkins").select("day, hours_worked").gt("hours_worked", 0).gte("day", addDays(toDay(), -400)),
     ]);
+    setLogged((c.data ?? []).map((r) => ({ day: r.day, hours: Number(r.hours_worked) })));
     setTx(t.data ?? []);
     setSlips(p.data ?? []);
     setDebts(d.data ?? []);
@@ -45,7 +50,12 @@ export default function MoneyPage() {
     <div className="space-y-4">
       {tab === "month" && <Month tx={tx} reload={load} />}
       {tab === "banks" && <Banks reload={load} />}
-      {tab === "payslips" && <Payslips slips={slips} reload={load} />}
+      {tab === "work" && (
+        <>
+          <WorkHours logged={logged} />
+          <Payslips slips={slips} logged={logged} reload={load} />
+        </>
+      )}
       {tab === "debts" && <Debts debts={debts} reload={load} />}
     </div>
   );
@@ -294,9 +304,40 @@ const SLIP_FIELDS = [
   ["hours", "Hours worked"],
 ] as const;
 
-function Payslips({ slips, reload }: { slips: Payslip[]; reload: () => void }) {
+// Paid hours vs hours you logged since the previous payslip (or the 4 weeks before the first one).
+// Pay can lag a week or two behind work, so this flags a gap to check rather than calling it wrong.
+function hoursGap(p: Payslip, prev: Payslip | undefined, logged: Logged): string | null {
+  if (p.hours == null) return null;
+  const from = prev ? addDays(prev.pay_date, 1) : addDays(p.pay_date, -27);
+  const mine = Math.round(logged.filter((l) => l.day >= from && l.day <= p.pay_date).reduce((t, l) => t + l.hours, 0) * 10) / 10;
+  const paid = Number(p.hours);
+  if (Math.abs(paid - mine) <= Math.max(2, paid * 0.1)) return null;
+  const when = (d: string) => new Date(`${d}T12:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return paid > mine
+    ? `Paid for ${paid}h, but you logged ${mine}h from ${when(from)} to ${when(p.pay_date)}. Your check-ins may be missing shifts.`
+    : `You logged ${mine}h from ${when(from)} to ${when(p.pay_date)}, but were paid for ${paid}h. Check your rota and ask payroll if hours are missing.`;
+}
+
+function Payslips({ slips, logged, reload }: { slips: Payslip[]; logged: Logged; reload: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({ pay_date: toDay(), employer: "" });
   const [open, setOpen] = useState(false);
+  const [read, setRead] = useState("");
+
+  // Reads the PDF on this device and fills the form. Nothing saves until you tap Save.
+  async function readPdf(file: File | undefined) {
+    if (!file) return;
+    setRead("Reading your payslip…");
+    try {
+      const g = guessPayslip(await pdfLines(file));
+      const found = Object.keys(g).length;
+      setForm((f) => ({ ...f, ...g }));
+      setOpen(true);
+      setRead(found ? `Filled ${found} box${found > 1 ? "es" : ""} from ${file.name}. Check every number against the PDF, then save.` : "Couldn't find the numbers in that PDF (it may be a scan). Type them in below.");
+    } catch {
+      setOpen(true);
+      setRead("Couldn't read that PDF. Type the numbers in below.");
+    }
+  }
 
   async function add() {
     const num = (k: string) => (form[k] ? Number(form[k]) : 0);
@@ -329,6 +370,7 @@ function Payslips({ slips, reload }: { slips: Payslip[]; reload: () => void }) {
     if (!paid) await supabase.from("transactions").insert({ kind: "income", amount: row.net, category: "salary", note: row.employer ? `Payslip: ${row.employer}` : "Payslip", day: row.pay_date, source: "payslip" });
     setForm({ pay_date: toDay(), employer: form.employer });
     setOpen(false);
+    setRead("");
     reload();
   }
 
@@ -366,9 +408,16 @@ function Payslips({ slips, reload }: { slips: Payslip[]; reload: () => void }) {
       </div>
 
       {!open ? (
-        <button className="btn btn-accent w-full" onClick={() => setOpen(true)}>+ Add payslip</button>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="btn btn-accent cursor-pointer text-center">
+            📄 Read a payslip PDF
+            <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => readPdf(e.target.files?.[0])} />
+          </label>
+          <button className="chip" onClick={() => setOpen(true)}>+ Type one in</button>
+        </div>
       ) : (
         <div className="card space-y-2">
+          {read && <p className="notice">{read}</p>}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="label">Pay date</label>
@@ -387,13 +436,25 @@ function Payslips({ slips, reload }: { slips: Payslip[]; reload: () => void }) {
           </div>
           <div className="flex gap-2">
             <button className="btn btn-accent flex-1" onClick={add}>Save payslip</button>
-            <button className="chip px-4" onClick={() => setOpen(false)}>Cancel</button>
+            <button
+              className="chip px-4"
+              onClick={() => {
+                setOpen(false);
+                setRead("");
+              }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
 
+      {!open && read && <p className="notice">{read}</p>}
+
       <ul className="space-y-2">
-        {slips.map((p) => (
+        {slips.map((p, i) => {
+          const gap = hoursGap(p, slips[i + 1], logged);
+          return (
           <li key={p.id} className="card text-sm">
             <div className="flex items-center justify-between">
               <span className="font-medium">{new Date(p.pay_date + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}{p.employer && ` · ${p.employer}`}</span>
@@ -407,8 +468,10 @@ function Payslips({ slips, reload }: { slips: Payslip[]; reload: () => void }) {
               <span>Hours {p.hours ?? "–"}</span>
               <span className="font-medium text-[var(--fg)]">Net {gbp(p.net)}</span>
             </div>
+            {gap && <p className="notice mt-2 text-xs">{gap}</p>}
           </li>
-        ))}
+          );
+        })}
       </ul>
     </>
   );
