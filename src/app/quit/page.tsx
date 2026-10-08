@@ -18,7 +18,7 @@ export default function QuitPage() {
       supabase.from("quits").select("*").order("created_at"),
       supabase.from("cravings").select("*").gte("at", new Date(Date.now() - 30 * 86400000).toISOString()).order("at", { ascending: false }),
     ]);
-    if (q.error) setMsg("Run supabase/006_live.sql first.");
+    if (q.error) setMsg("The database is still setting up. It finishes on the next deploy.");
     setQuits(q.data ?? []);
     setCravings(c.data ?? []);
     setReady(true);
@@ -74,7 +74,7 @@ export default function QuitPage() {
           <button className="btn w-full py-3" onClick={start}>
             Start my quit
           </button>
-          {msg && <p className="text-sm text-amber-600">{msg}</p>}
+          {msg && <p className="notice">{msg}</p>}
         </div>
       </div>
     );

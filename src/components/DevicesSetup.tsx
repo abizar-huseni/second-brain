@@ -53,7 +53,7 @@ export default function DevicesSetup() {
       const token = b64url(crypto.getRandomValues(new Uint8Array(32)));
       const name = kind === "windows" ? "Laptop" : "Phone";
       const { data, error } = await supabase.from("devices").insert({ name, kind, token_hash: await sha256Hex(token) }).select("id").single();
-      if (error) throw new Error(/devices/.test(error.message) ? "Run supabase/007_agent.sql in Supabase first." : error.message);
+      if (error) throw new Error(/devices/.test(error.message) ? "The agent's database tables aren't in yet. They go in with the next deploy (supabase/009_agent.sql)." : error.message);
       const origin = location.origin;
       const code = b64url(new TextEncoder().encode(JSON.stringify({ a: origin, t: token, d: data.id, p: [{ id: me.id, name: me.name, pub: me.pub }] })));
       const text =
@@ -84,7 +84,7 @@ export default function DevicesSetup() {
   const copy = (text: string) => navigator.clipboard.writeText(text).then(() => setCopied(true));
 
   return (
-    <div id="devices" className="card space-y-3">
+    <div id="devices" className="card scroll-mt-20 space-y-3">
       <div>
         <p className="label">🛰️ Laptop + phone agent</p>
         <p className="text-xs text-zinc-500">

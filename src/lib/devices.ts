@@ -39,7 +39,7 @@ export const isOnline = (d: Device) => Boolean(d.last_seen && Date.now() - Date.
 
 export async function loadDevices() {
   const { data, error } = await supabase.from("devices").select("id, name, kind, last_seen, info, created_at").eq("revoked", false).order("created_at");
-  if (error) throw new Error(/devices/.test(error.message) ? "Run supabase/007_agent.sql in Supabase first." : error.message);
+  if (error) throw new Error(/devices/.test(error.message) ? "The agent's database tables aren't in yet. They go in with the next deploy (supabase/009_agent.sql)." : error.message);
   return (data ?? []) as Device[];
 }
 

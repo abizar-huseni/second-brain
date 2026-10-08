@@ -1,5 +1,5 @@
 -- Device agent: a small program on your laptop and phone that proposes actions and runs them
--- only after you approve in the app. Run once in Supabase SQL Editor (after 006). Safe to re-run.
+-- only after you approve in the app. Applied automatically on deploy (scripts/migrate.mjs). Safe to re-run.
 --
 -- How it stays safe:
 --   * Each device has its own secret token. Only its sha256 hash is stored here.

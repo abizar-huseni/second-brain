@@ -1,5 +1,5 @@
 # Second Brain agent installer for Windows. No admin needed.
-# The Me page in your dashboard gives you the one line that runs this, with your pairing code.
+# The You page in your dashboard gives you the one line that runs this, with your pairing code.
 #   1. Installs Node.js (free) with winget if it's missing
 #   2. Downloads the agent to %LOCALAPPDATA%\SecondBrainAgent
 #   3. Pairs it with your dashboard
@@ -7,7 +7,7 @@
 # Uninstall: delete %LOCALAPPDATA%\SecondBrainAgent and "SecondBrainAgent.vbs" in shell:startup.
 
 $ErrorActionPreference = 'Stop'
-if (-not $env:SB_PAIR -or -not $env:SB_APP) { throw 'Copy the full command from the Me page in your dashboard.' }
+if (-not $env:SB_PAIR -or -not $env:SB_APP) { throw 'Copy the full command from the You page in your dashboard.' }
 
 $dir = Join-Path $env:LOCALAPPDATA 'SecondBrainAgent'
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
@@ -28,7 +28,7 @@ if (Test-Path $pidFile) { Stop-Process -Id ([int](Get-Content $pidFile)) -Force 
 $agent = Join-Path $dir 'second-brain-agent.mjs'
 Invoke-WebRequest -UseBasicParsing -Uri "$($env:SB_APP.TrimEnd('/'))/agent/second-brain-agent.mjs" -OutFile $agent
 & $node $agent pair $env:SB_PAIR
-if ($LASTEXITCODE -ne 0) { throw 'Pairing failed. Make a new code on the Me page and try again.' }
+if ($LASTEXITCODE -ne 0) { throw 'Pairing failed. Make a new code on the You page and try again.' }
 
 $vbs = Join-Path ([Environment]::GetFolderPath('Startup')) 'SecondBrainAgent.vbs'
 Set-Content -Path $vbs -Encoding ASCII -Value "CreateObject(""WScript.Shell"").Run """"""$node"""" """"$agent"""" start"", 0, False"

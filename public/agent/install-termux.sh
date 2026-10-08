@@ -1,9 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Second Brain agent installer for Android (Termux). Free and open source end to end.
 # Needs, from F-Droid: Termux, Termux:API (phone controls) and Termux:Boot (start after a restart).
-# The Me page in your dashboard gives you the one line that runs this, with your pairing code.
+# The You page in your dashboard gives you the one line that runs this, with your pairing code.
 set -e
-if [ -z "$SB_PAIR" ] || [ -z "$SB_APP" ]; then echo "Copy the full command from the Me page in your dashboard."; exit 1; fi
+if [ -z "$SB_PAIR" ] || [ -z "$SB_APP" ]; then echo "Copy the full command from the You page in your dashboard."; exit 1; fi
 
 echo "Installing Node.js and the Termux:API tools (free)..."
 pkg install -y nodejs-lts termux-api >/dev/null

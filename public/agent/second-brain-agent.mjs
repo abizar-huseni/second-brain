@@ -110,8 +110,8 @@ async function rpc(fn, body) {
   const res = await fetch(`${cfg.supabase_url}/rest/v1/rpc/${fn}`, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(30_000) });
   const text = await res.text();
   if (!res.ok) {
-    if (/invalid device token/.test(text)) throw Object.assign(new Error("This device was disconnected in the dashboard. Pair it again from the Me page."), { fatal: true });
-    if (/agent_poll|function .* does not exist/.test(text)) throw new Error("Run supabase/007_agent.sql in the Supabase SQL Editor first.");
+    if (/invalid device token/.test(text)) throw Object.assign(new Error("This device was disconnected in the dashboard. Connect it again from the You page."), { fatal: true });
+    if (/agent_poll|function .* does not exist/.test(text)) throw new Error("The dashboard's database isn't ready for the agent yet (supabase/009_agent.sql goes in with the next deploy).");
     throw new Error(`${fn} ${res.status}: ${text.slice(0, 300)}`);
   }
   return text ? JSON.parse(text) : null;
@@ -576,7 +576,7 @@ async function execute(a, ctx) {
   try {
     verify(a);
     const fn = ACTIONS[a.action];
-    if (!fn) throw new Error(`This agent (v${VERSION}) doesn't know "${a.action}". Reinstall it from the Me page to update.`);
+    if (!fn) throw new Error(`This agent (v${VERSION}) doesn't know "${a.action}". Reinstall it from the You page to update.`);
     state.done_ids = [...state.done_ids.slice(-499), a.id];
     saveState();
     log("run", a.action, JSON.stringify(a.params));
@@ -630,7 +630,7 @@ async function tick() {
 
 async function start() {
   if (!cfg) {
-    console.error("Not paired yet. Get the install command from the Me page in your dashboard.");
+    console.error("Not paired yet. Get the install command from the You page in your dashboard.");
     process.exit(1);
   }
   try {
@@ -663,11 +663,11 @@ async function start() {
 
 async function pair(code) {
   const data = JSON.parse(Buffer.from(String(code), "base64url").toString("utf8"));
-  if (!data.t || !data.d || !data.a) throw new Error("That pairing code is incomplete. Copy it again from the Me page.");
+  if (!data.t || !data.d || !data.a) throw new Error("That pairing code is incomplete. Copy it again from the You page.");
   const conf = await (await fetch(`${data.a}/api/agent/config`)).json();
   if (!conf.supabase_url || !conf.anon_key) throw new Error("The dashboard didn't return its database settings.");
   const trusted = (data.p ?? []).filter((k) => keyId(k.pub) === k.id).map((k) => ({ id: k.id, name: k.name, pub: { kty: "EC", crv: "P-256", x: k.pub.x, y: k.pub.y } }));
-  if (!trusted.length) throw new Error("The pairing code has no approval key. Open the Me page in your browser and try again.");
+  if (!trusted.length) throw new Error("The pairing code has no approval key. Open the You page in your browser and try again.");
   cfg = { app: data.a, supabase_url: conf.supabase_url, anon_key: conf.anon_key, token: data.t, device_id: data.d, trusted_keys: trusted, allow_shell: Boolean(cfg?.allow_shell), vault: cfg?.vault ?? null };
   saveCfg();
   await rpc("agent_poll", { p_token: cfg.token, p_info: await snapshot(), p_results: [] });

@@ -218,7 +218,7 @@ export function matchIntent(text: string, kind: DeviceKind): { action: string; p
   const pick = (action: string, params: Record<string, unknown>, title: string) => (CATALOG[action].on.includes(kind) ? { action, params, title } : null);
   if (has("black", "screen off", "screen timeout", "turns off", "goes dark", "dims")) return pick("screen_timeout", { minutes: Number.isFinite(num) ? num : has("never") ? 0 : 30, when: "both" }, "Stop the screen going black so fast");
   if (has("awake", "don't sleep", "dont sleep", "stay on")) return pick("keep_awake", { hours: Number.isFinite(num) ? num : 2 }, "Keep the laptop awake");
-  if (has("find my phone", "where is my phone", "ring")) return pick("find_phone", {}, "Find my phone");
+  if (has("find my phone", "where is my phone", "ring my phone")) return pick("find_phone", {}, "Find my phone");
   if (has("torch", "flashlight")) return pick("torch", { on: !has("off") }, `Torch ${has("off") ? "off" : "on"}`);
   if (has("lock")) return pick("lock", {}, "Lock the laptop");
   if (has("cancel shutdown")) return pick("cancel_shutdown", {}, "Cancel shutdown");
@@ -230,6 +230,8 @@ export function matchIntent(text: string, kind: DeviceKind): { action: string; p
   if (has("brightness", "brighter", "dimmer")) return pick("brightness", { level: Number.isFinite(num) ? num : 60 }, "Set brightness");
   if (has("dark mode")) return pick("dark_mode", { on: true }, "Dark mode on");
   if (has("light mode")) return pick("dark_mode", { on: false }, "Light mode on");
+  const close = t.match(/\b(?:close|kill) ([\w.+-]+)/)?.[1];
+  if (close && !["everything", "all", "the", "my"].includes(close)) return pick("close_app", { name: close }, `Close ${close}`);
   if (has("focus", "distract")) return pick("focus_mode", { hours: Number.isFinite(num) ? num : 2 }, "Focus mode");
   if (has("clean", "space", "storage", "temp")) return pick("clean_temp", {}, "Clean temp files");
   if (has("recycle", "bin")) return pick("empty_recycle_bin", {}, "Empty recycle bin");
