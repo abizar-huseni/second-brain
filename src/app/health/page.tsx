@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { daysAgo } from "@/lib/dates";
 import { buildHealthDays, type HealthDay } from "@/lib/samsung";
 import Bars from "@/components/Bars";
+import LiveSync from "@/components/LiveSync";
 
 const hm = (mins: number) => `${Math.floor(mins / 60)}h ${String(Math.round(mins % 60)).padStart(2, "0")}m`;
 const avg = (xs: (number | null)[]) => {
@@ -57,8 +58,10 @@ export default function HealthPage() {
 
   return (
     <div className="space-y-4">
+      <LiveSync onRefresh={load} />
+
       <div className="card space-y-2">
-        <p className="label">Import from Samsung Health</p>
+        <p className="label">Import history from Samsung Health</p>
         <p className="text-xs text-zinc-500">
           Samsung Health → ⋮ → Settings → Download personal data. Move the folder to this device, then select all the CSV files inside it.
           Re-importing is safe: days are updated, never duplicated.

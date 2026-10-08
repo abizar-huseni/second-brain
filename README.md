@@ -18,6 +18,7 @@ Built in public by [@abizar-huseni](https://github.com/abizar-huseni) while lear
 - **Notes**: dump thoughts in one tap, group them with #tags, search them
 - **Mind map**: every #tag becomes a branch around you, sized by how often you think about it
 - **Health**: import your Samsung Health export (Galaxy Watch) and see steps, sleep, exercise, stress and heart rate over 7/30/90 days
+- **Live watch sync**: Galaxy Watch data flows Samsung Health → Health Connect → the free HC Webhook Android app → this app, so steps, sleep, heart rate and workouts update on their own
 - **Bank statements**: drop in a Lloyds or HSBC CSV and every transaction is imported and auto-categorised (no duplicates on re-import)
 - **Live bank sync**: Lloyds and HSBC (and most UK banks) through [Lunch Flow](https://www.lunchflow.app)'s personal API; balances and transactions sync with one tap
 - **Money**: monthly in/out with category breakdown, UK payslips (tax, NI, pension, student loan, £/hour), and a debt tracker with payoff progress and monthly interest cost
@@ -34,7 +35,7 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 
 ## Setup
 
-1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`, then `supabase/003_health.sql`, then `supabase/004_bank.sql`.
+1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`, then `supabase/003_health.sql`, then `supabase/004_bank.sql`, then `supabase/005_live_health.sql`.
 2. **Keys**: copy `.env.example` to `.env.local` and paste your Project URL and anon key from Project Settings > API. Never commit `.env.local`.
 3. **Run locally**:
    ```bash
@@ -55,13 +56,25 @@ UK banks don't offer free open banking access to individuals, so this uses [Lunc
 3. In Vercel, add `LUNCHFLOW_API_KEY`, then redeploy.
 4. In the app: Money → Banks → Sync now.
 
+## Live watch sync (optional, free)
+
+Samsung Health has no web API, but it writes to Android's Health Connect. The [HC Webhook](https://play.google.com/store/apps/details?id=com.hcwebhook.app) app reads Health Connect and posts it here.
+
+1. Run `supabase/005_live_health.sql`. Make sure `SUPABASE_SERVICE_ROLE_KEY` is set in Vercel (server-only, never `NEXT_PUBLIC_`).
+2. Samsung Health → Settings → Health Connect: allow it to share steps, sleep, heart rate and exercise.
+3. In the app: Health → Create my sync token.
+4. In HC Webhook: grant Health Connect access, add a webhook with the URL and the `x-sync-token` header shown on the Health page, pick an interval.
+
+Raw readings land in `health_samples`; each push recalculates the affected days in `health_days`.
+
 ## Roadmap
 
 - [x] **v1**: goals, habits, check-ins, dashboard
 - [x] **v2 part 1**: notes + mind map, money (expenses, payslips, debt tracker)
 - [x] **v2 part 2a**: Samsung Health CSV import + Health page
 - [ ] **v2 part 2b**: Google Keep import (Takeout), payslip PDF upload
-- [ ] **v3**: live Galaxy Watch data via Health Connect, UK Open Banking for Lloyds + HSBC, Gmail summary, AI coach
+- [x] **v3 part 1**: live UK bank sync (Lunch Flow), live Galaxy Watch sync (Health Connect + HC Webhook)
+- [ ] **v3 part 2**: AI coach (daily brief + "what next"), Gmail summary
 - [ ] **v4**: weekly review, correlations (sleep vs mood vs productivity) in Python
 
 ## Build log
@@ -72,3 +85,4 @@ UK banks don't offer free open banking access to individuals, so this uses [Lunc
 | 2026-10-08 | Deployed on Vercel + Supabase. v2 part 1: notes, mind map, money |
 | 2026-10-08 | Samsung Health import: 545 days of watch data in one click |
 | 2026-10-08 | Bank statement import + live UK bank sync via Lunch Flow |
+| 2026-10-08 | Live Galaxy Watch sync through Health Connect |
