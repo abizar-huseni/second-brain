@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isConfigured, supabase } from "@/lib/supabase";
-import Nav from "./Nav";
-import QuickAdd from "./QuickAdd";
+import Shell from "./Shell";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -27,16 +26,16 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       </Centered>
     );
   }
-  if (session === undefined) return <Centered><p className="text-zinc-500">Loading…</p></Centered>;
+  if (session === undefined) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <span className="brain-mark animate-pulse text-5xl">🧠</span>
+      </div>
+    );
+  }
   if (!session) return <Login />;
 
-  return (
-    <>
-      <Nav />
-      <main className="mx-auto max-w-3xl px-4 pb-28 pt-6 sm:pb-10">{children}</main>
-      <QuickAdd />
-    </>
-  );
+  return <Shell email={session.user.email ?? ""}>{children}</Shell>;
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
