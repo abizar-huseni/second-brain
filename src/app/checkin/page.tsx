@@ -7,6 +7,7 @@ import type { Checkin } from "@/lib/types";
 import { ENERGY, MOOD } from "@/lib/moods";
 import EmojiScale from "@/components/EmojiScale";
 import Confetti from "@/components/Confetti";
+import { useSpeech } from "@/lib/useSpeech";
 
 const empty = (kind: Checkin["kind"]): Checkin => ({
   day: checkinDay(kind),
@@ -111,10 +112,40 @@ export default function CheckinPage() {
 }
 
 function Field(props: { label: string; value: string | null; onChange: (v: string) => void; rows: number; placeholder?: string }) {
+  const [interim, setInterim] = useState("");
+  const latest = useRef(props.value ?? "");
+  latest.current = props.value ?? "";
+  const speech = useSpeech((fin, int) => {
+    if (fin) {
+      const cur = latest.current;
+      latest.current = `${cur}${cur && !/\s$/.test(cur) ? " " : ""}${fin.trim()}`;
+      props.onChange(latest.current);
+    }
+    setInterim(int);
+  });
   return (
     <div>
-      <label className="label">{props.label}</label>
-      <textarea className="input" rows={props.rows} placeholder={props.placeholder} value={props.value ?? ""} onChange={(e) => props.onChange(e.target.value)} />
+      <div className="flex items-center justify-between">
+        <label className="label">{props.label}</label>
+        {speech.supported && (
+          <button
+            type="button"
+            aria-label={speech.listening ? `Stop dictating ${props.label}` : `Dictate ${props.label}`}
+            onClick={() => (speech.listening ? speech.stop() : speech.start())}
+            className={`mb-1 rounded-full px-3 py-1 text-xs transition active:scale-95 ${speech.listening ? "bg-rose-500 text-white" : "bg-zinc-500/10 text-zinc-500"}`}
+          >
+            🎙️ {speech.listening ? "Listening… tap to stop" : "Talk"}
+          </button>
+        )}
+      </div>
+      <textarea
+        className="input"
+        rows={props.rows}
+        placeholder={props.placeholder}
+        value={interim ? `${props.value ?? ""}${props.value && !/\s$/.test(props.value) ? " " : ""}${interim}` : (props.value ?? "")}
+        onChange={(e) => props.onChange(e.target.value)}
+        readOnly={Boolean(interim)}
+      />
     </div>
   );
 }

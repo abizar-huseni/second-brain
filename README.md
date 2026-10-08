@@ -178,7 +178,7 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 - [x] **v1**: goals, habits, check-ins, dashboard
 - [x] **v2 part 1**: notes + mind map, money (expenses, payslips, debt tracker)
 - [x] **v2 part 2a**: Samsung Health CSV import + Health page
-- [ ] **v2 part 2b**: Google Keep import (Takeout), payslip PDF upload
+- [x] **v2 part 2b**: Google Keep import (Takeout), payslip PDF upload
 - [x] **v3 part 1**: live UK bank sync (Lunch Flow), live Galaxy Watch sync (Health Connect + HC Webhook)
 - [x] **v3 part 2**: AI coach (daily brief + ask anything) on a free model, emoji check-ins, redesigned Today
 - [x] **v3 part 3**: live mode: server heartbeat, Gmail + Calendar feed, "About me" for the coach
@@ -200,3 +200,4 @@ Raw readings land in `health_samples`; each push recalculates the affected days 
 | 2026-10-08 | Live mode: heartbeat, Gmail + Calendar feed, Me page |
 | 2026-10-08 | The assistant thinks and plans on its own; quit system with craving SOS; quick add |
 | 2026-10-08 | AI never stalls (free backup chain), sleep debt + body clock, mindset fuel, NHS-grounded tips |
+| 2026-10-08 | Today paints from saved data while it refreshes; sign-out wipes on-device data; mic on check-in; Check in + Capture on the icon long-press |
