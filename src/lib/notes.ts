@@ -6,7 +6,8 @@ export function extractTags(body: string): string[] {
 
 // Where a note came from (notes.source). Only the owner's own writing can become a standing rule or fact,
 // so this is an allow-list: shared posts, clipboard text, AI-written notes and any new source are left out.
-export const OWN_SOURCES = ["app", "obsidian"];
+// Google Keep notes are your own notes app (linked pages come in as bare URLs, never their text).
+export const OWN_SOURCES = ["app", "obsidian", "keep"];
 
 // Before notes.source existed, shared and AI notes were marked with these tags instead.
 const NOT_MINE_TAGS = ["shared", "brain"];

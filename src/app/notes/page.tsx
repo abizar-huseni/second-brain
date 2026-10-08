@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { extractTags } from "@/lib/notes";
 import MindMap from "@/components/MindMap";
+import KeepImport from "@/components/KeepImport";
 import { NOTE_KIND, type Note } from "@/lib/types";
 import { callApi } from "@/lib/api";
 import { useSubTabs } from "@/lib/subtabs";
@@ -124,6 +125,8 @@ export default function NotesPage() {
         ))}
         {!shown.length && <p className="text-center text-sm text-zinc-500">No notes here yet.</p>}
       </ul>
+
+      <KeepImport onDone={load} />
     </div>
   );
 }
