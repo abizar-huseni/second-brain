@@ -27,8 +27,8 @@ type CalEvent = { external_id: string; title: string; starts_at: string; all_day
 type Sync = { source: string; last_ok: string | null; last_error: string | null };
 type Data = { goals: Goal[]; habits: Habit[]; logs: HabitLog[]; checkins: Checkin[]; health: HealthDay | null; mail: Mail[]; events: CalEvent[]; sync: Sync[] };
 
-const MAIL_ICON: Record<string, string> = { money: "💷", uni: "🎓", jobs: "💼", other: "✉️" };
-const MAIL_RANK: Record<string, number> = { money: 0, uni: 1, jobs: 2, other: 3 };
+const MAIL_ICON: Record<string, string> = { money: "💷", uni: "🎓", other: "✉️" };
+const MAIL_RANK: Record<string, number> = { money: 0, uni: 1, other: 2 };
 
 export default function Today() {
   const [data, setData] = useState<Data | null>(null);

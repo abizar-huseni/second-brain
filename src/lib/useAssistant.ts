@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 
-export const DEFAULT_NAME = "Brain";
+export const DEFAULT_NAME = "Kairos";
 
 // The name you gave your assistant on the Me page.
 export function useAssistantName() {

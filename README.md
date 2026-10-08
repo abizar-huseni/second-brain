@@ -15,7 +15,7 @@ Built in public by [@abizar-huseni](https://github.com/abizar-huseni) while lear
 
 ## A brain that thinks for you
 
-The assistant (default name "Brain", rename it on the Me page) runs on the server every 30 minutes and works without you opening the app:
+The assistant (default name "Kairos", rename it on the You page) runs on the server every 30 minutes and works without you opening the app:
 
 | When | What it does |
 |---|---|

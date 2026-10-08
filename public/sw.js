@@ -1,5 +1,5 @@
 // Service worker: makes the app installable, keeps the app shell available offline,
-// and shows Jarvis notifications. Data always comes fresh from Supabase.
+// and shows your assistant's notifications. Data always comes fresh from Supabase.
 const CACHE = "second-brain-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
