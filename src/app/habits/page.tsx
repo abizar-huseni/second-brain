@@ -107,8 +107,8 @@ export default function HabitsPage() {
                         onClick={() => toggle(h, d)}
                         aria-pressed={on}
                         aria-label={`${h.name}, ${new Date(d + "T12:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}`}
-                        className={`rounded-md py-2 text-xs ${on ? color : "bg-zinc-100 dark:bg-zinc-800"} ${
-                          d === toDay() ? "ring-2 ring-zinc-400" : ""
+                        className={`rounded-xl py-2 text-xs transition active:scale-90 ${on ? color : "bg-zinc-500/10 text-zinc-500"} ${
+                          d === toDay() ? "ring-2 ring-[var(--accent)]/60" : ""
                         }`}
                       >
                         {new Date(d + "T12:00").toLocaleDateString("en-GB", { weekday: "narrow" })}
@@ -129,7 +129,7 @@ export default function HabitsPage() {
           <option value="good">Build</option>
           <option value="bad">Break</option>
         </select>
-        <button className="btn" disabled={saving} onClick={add}>Add</button>
+        <button className="btn btn-accent" disabled={saving} onClick={add}>Add</button>
       </div>
     </div>
   );

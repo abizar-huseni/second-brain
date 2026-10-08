@@ -7,6 +7,7 @@ import Aurora from "./Aurora";
 import Nav from "./Nav";
 import QuickAdd from "./QuickAdd";
 import TopBar from "./TopBar";
+import { SubTabsProvider } from "@/lib/subtabs";
 
 const STALE_MS = 10 * 60 * 1000;
 const PULL = 70;
@@ -90,7 +91,7 @@ export default function Shell({ email, children }: { email: string; children: Re
   }, []);
 
   return (
-    <>
+    <SubTabsProvider>
       <Aurora />
       <Nav initial={initial} />
       {pull > 0 && (
@@ -110,6 +111,6 @@ export default function Shell({ email, children }: { email: string; children: Re
         </main>
       </div>
       <QuickAdd />
-    </>
+    </SubTabsProvider>
   );
 }

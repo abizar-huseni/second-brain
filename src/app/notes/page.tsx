@@ -6,12 +6,19 @@ import { extractTags } from "@/lib/notes";
 import MindMap from "@/components/MindMap";
 import { NOTE_KIND, type Note } from "@/lib/types";
 import { callApi } from "@/lib/api";
+import { useSubTabs } from "@/lib/subtabs";
+
+const VIEWS = [
+  { key: "list", label: "Thoughts" },
+  { key: "map", label: "Mind map" },
+] as const;
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [body, setBody] = useState("");
   const [tag, setTag] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "map">("list");
+  useSubTabs(VIEWS, view, setView);
   const [query, setQuery] = useState("");
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
@@ -71,18 +78,11 @@ export default function NotesPage() {
         />
         <div className="flex items-center justify-between">
           <span className="text-xs text-zinc-500">{extractTags(body).map((t) => `#${t}`).join(" ")}</span>
-          <button className="btn" disabled={saving} onClick={add}>Save</button>
+          <button className="btn btn-accent" disabled={saving} onClick={add}>Save</button>
         </div>
         {msg && <p className="notice">{msg}</p>}
       </div>
 
-      <div className="flex gap-2">
-        {(["list", "map"] as const).map((v) => (
-          <button key={v} onClick={() => setView(v)} className={`flex-1 rounded-lg py-2 text-sm capitalize ${view === v ? "btn" : "border border-zinc-300 dark:border-zinc-700"}`}>
-            {v === "map" ? "Mind map" : "Notes"}
-          </button>
-        ))}
-      </div>
 
       {view === "map" && (
         <div className="card">
@@ -112,7 +112,7 @@ export default function NotesPage() {
             <p className="whitespace-pre-line text-sm">{n.body}</p>
             <div className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
               {n.tags.map((t) => (
-                <button key={t} onClick={() => setTag(t)} className="rounded-full bg-zinc-100 px-2 py-0.5 dark:bg-zinc-800">#{t}</button>
+                <button key={t} onClick={() => setTag(t)} className="chip px-2.5 py-0.5 text-xs">#{t}</button>
               ))}
               <span className="ml-auto">{new Date(n.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
               <button onClick={() => togglePin(n)} aria-label={n.pinned ? "Unpin note" : "Pin note"} aria-pressed={n.pinned}>

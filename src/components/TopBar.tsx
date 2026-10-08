@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { groupFor, ME, pageFor } from "@/lib/nav";
+import { buzz } from "@/lib/feel";
+import { useActiveSubTabs } from "@/lib/subtabs";
 import { Avatar } from "./Nav";
 import ThemeToggle from "./ThemeToggle";
 
@@ -22,7 +24,8 @@ export default function TopBar({ initial }: { initial: string }) {
   }, []);
 
   const title = group?.label ?? page?.label ?? "";
-  const pills = group && group.pages.length > 1 ? group.pages : null;
+  const sub = useActiveSubTabs();
+  const pills = group && (group.pages.length > 1 || sub) ? group.pages : null;
 
   return (
     <header className={`sticky top-0 z-10 pt-[env(safe-area-inset-top)] transition-all duration-300 ${scrolled ? "glass border-b border-[var(--line)]" : ""}`}>
@@ -47,9 +50,29 @@ export default function TopBar({ initial }: { initial: string }) {
           </div>
         </div>
         {pills && (
-          <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3">
+          <div className="no-scrollbar fade-right -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3">
             {pills.map((p) => {
               const on = page?.href === p.href;
+              // The open page's own views sit inside its pill, so there's only ever one row.
+              if (on && sub) {
+                return (
+                  <div key={p.href} className="flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--fg)] p-0.5 shadow-sm">
+                    {sub.tabs.map((t) => (
+                      <button
+                        key={t.key}
+                        onClick={() => {
+                          buzz();
+                          sub.pick(t.key);
+                        }}
+                        aria-pressed={sub.active === t.key}
+                        className={`rounded-full px-2.5 py-1 text-[13px] transition active:scale-95 ${sub.active === t.key ? "bg-[var(--bg)] font-semibold text-[var(--fg)]" : "text-[var(--bg)]/70"}`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                );
+              }
               return (
                 <Link
                   key={p.href}

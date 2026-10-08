@@ -13,7 +13,8 @@ const SOURCE = { me: "You asked", ai: "Brain suggests", device: "Noticed" } as c
 const EXAMPLES = ["Stop my screen going black", "Keep the laptop awake for 2 hours", "Close Discord, I need to focus", "Find my phone"];
 
 // Today → Now: what your laptop and phone want to do, waiting for your yes. Nothing runs without it.
-export default function DevicesCard() {
+// quiet: on Today, show nothing until a device is paired (setup lives on You).
+export default function DevicesCard({ quiet }: { quiet?: boolean }) {
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [actions, setActions] = useState<DeviceAction[]>([]);
   const [myKey, setMyKey] = useState("");
@@ -62,6 +63,7 @@ export default function DevicesCard() {
   if (devices === null) return null;
 
   if (!devices.length) {
+    if (quiet) return null;
     return (
       <Link href="/me#devices" className="card card-link flex items-center gap-3">
         <span className="text-2xl">💻</span>

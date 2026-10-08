@@ -8,12 +8,20 @@ import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, gbp } from "@/lib/money";
 import { countable, parseStatement } from "@/lib/statements";
 import { cachedAccounts, lastSynced, syncBanks, type BankAccount } from "@/lib/bankClient";
 import Progress from "@/components/Progress";
+import { useSubTabs } from "@/lib/subtabs";
 import type { Debt, Payslip, Transaction } from "@/lib/types";
 
 type Tab = "month" | "banks" | "payslips" | "debts";
+const TABS: { key: Tab; label: string }[] = [
+  { key: "month", label: "This month" },
+  { key: "banks", label: "Banks" },
+  { key: "payslips", label: "Payslips" },
+  { key: "debts", label: "Debts" },
+];
 
 export default function MoneyPage() {
   const [tab, setTab] = useState<Tab>("month");
+  useSubTabs(TABS, tab, setTab);
   const [tx, setTx] = useState<Transaction[]>([]);
   const [slips, setSlips] = useState<Payslip[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -35,13 +43,6 @@ export default function MoneyPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        {(["month", "banks", "payslips", "debts"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg py-2 text-sm capitalize ${tab === t ? "btn" : "border border-zinc-300 dark:border-zinc-700"}`}>
-            {t === "month" ? "This month" : t}
-          </button>
-        ))}
-      </div>
       {tab === "month" && <Month tx={tx} reload={load} />}
       {tab === "banks" && <Banks reload={load} />}
       {tab === "payslips" && <Payslips slips={slips} reload={load} />}
@@ -98,15 +99,16 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
       </div>
 
       <div className="card space-y-2">
-        <div className="flex gap-2">
+        <div className="seg">
           {(["expense", "income"] as const).map((k) => (
             <button
               key={k}
+              aria-pressed={kind === k}
               onClick={() => {
                 setKind(k);
                 setCategory(k === "expense" ? "food" : "salary");
               }}
-              className={`flex-1 rounded-lg py-1.5 text-sm capitalize ${kind === k ? "bg-zinc-200 dark:bg-zinc-700" : ""}`}
+              className="seg-btn capitalize"
             >
               {k}
             </button>
@@ -119,7 +121,7 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
           </select>
         </div>
         <input className="input" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
-        <button className="btn w-full" onClick={add}>Add {kind}</button>
+        <button className="btn btn-accent w-full" onClick={add}>Add {kind}</button>
       </div>
 
       <StatementImport reload={reload} />
@@ -136,7 +138,7 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
         </div>
       )}
 
-      <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
+      <ul className="card divide-y divide-[var(--line)]">
         {rows.slice(0, 30).map((t) => (
           <li key={t.id} className="flex items-center gap-2 py-2 text-sm">
             <span className="w-14 text-xs text-zinc-500">{new Date(t.day + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
@@ -221,7 +223,7 @@ function Banks({ reload }: { reload: () => void }) {
             <span className="ml-auto tabular-nums">{a.balance === null ? "–" : gbp(a.balance)}</span>
           </div>
         ))}
-        <button className="btn w-full" disabled={busy} onClick={sync}>{busy ? "Syncing…" : "Sync now"}</button>
+        <button className="btn btn-accent w-full" disabled={busy} onClick={sync}>{busy ? "Syncing…" : "Sync now"}</button>
         <p className="text-xs text-zinc-500">
           {synced ? `Last synced ${new Date(synced).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}. ` : ""}
           Banks are connected in Lunch Flow (read-only open banking). This app never sees your bank login.
@@ -265,9 +267,9 @@ function StatementImport({ reload }: { reload: () => void }) {
   return (
     <div className="card space-y-2">
       <p className="label">Import bank statement (CSV)</p>
-      <div className="flex gap-2">
+      <div className="seg">
         {["Lloyds", "HSBC"].map((a) => (
-          <button key={a} onClick={() => setAccount(a)} className={`flex-1 rounded-lg py-1.5 text-sm ${account === a ? "bg-zinc-200 dark:bg-zinc-700" : "border border-zinc-300 dark:border-zinc-700"}`}>
+          <button key={a} onClick={() => setAccount(a)} aria-pressed={account === a} className="seg-btn">
             {a}
           </button>
         ))}
@@ -364,7 +366,7 @@ function Payslips({ slips, reload }: { slips: Payslip[]; reload: () => void }) {
       </div>
 
       {!open ? (
-        <button className="btn w-full" onClick={() => setOpen(true)}>+ Add payslip</button>
+        <button className="btn btn-accent w-full" onClick={() => setOpen(true)}>+ Add payslip</button>
       ) : (
         <div className="card space-y-2">
           <div className="grid grid-cols-2 gap-2">
@@ -384,8 +386,8 @@ function Payslips({ slips, reload }: { slips: Payslip[]; reload: () => void }) {
             ))}
           </div>
           <div className="flex gap-2">
-            <button className="btn flex-1" onClick={add}>Save payslip</button>
-            <button className="rounded-lg border border-zinc-300 px-4 text-sm dark:border-zinc-700" onClick={() => setOpen(false)}>Cancel</button>
+            <button className="btn btn-accent flex-1" onClick={add}>Save payslip</button>
+            <button className="chip px-4" onClick={() => setOpen(false)}>Cancel</button>
           </div>
         </div>
       )}
@@ -403,7 +405,7 @@ function Payslips({ slips, reload }: { slips: Payslip[]; reload: () => void }) {
               <span>NI {gbp(p.ni)}</span>
               <span>Pension {gbp(p.pension)}</span>
               <span>Hours {p.hours ?? "–"}</span>
-              <span className="font-medium text-zinc-900 dark:text-zinc-100">Net {gbp(p.net)}</span>
+              <span className="font-medium text-[var(--fg)]">Net {gbp(p.net)}</span>
             </div>
           </li>
         ))}
@@ -486,7 +488,7 @@ function Debts({ debts, reload }: { debts: Debt[]; reload: () => void }) {
           <input className="input" type="number" inputMode="decimal" placeholder="APR %" value={apr} onChange={(e) => setApr(e.target.value)} />
           <input className="input" type="number" inputMode="decimal" placeholder="Min £/mo" value={minPay} onChange={(e) => setMinPay(e.target.value)} />
         </div>
-        <button className="btn w-full" onClick={add}>Add debt</button>
+        <button className="btn btn-accent w-full" onClick={add}>Add debt</button>
       </div>
     </>
   );

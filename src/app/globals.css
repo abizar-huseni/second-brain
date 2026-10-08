@@ -112,8 +112,20 @@ body {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(135deg, var(--accent), var(--accent-2));
   }
+  /* Segmented switch: .seg on the row, .seg-btn on each option, aria-pressed marks the chosen one. */
+  .seg {
+    @apply flex gap-1 rounded-2xl bg-zinc-500/10 p-1;
+  }
+  .seg-btn {
+    @apply flex-1 rounded-xl py-2 text-sm text-zinc-500 transition active:scale-[0.97] aria-pressed:bg-[var(--surface)] aria-pressed:font-semibold aria-pressed:text-[var(--fg)] aria-pressed:shadow-sm;
+  }
   .notice {
     @apply rounded-2xl bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300;
+  }
+  /* Hints that a row scrolls sideways. */
+  .fade-right {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
   }
   .no-scrollbar {
     scrollbar-width: none;

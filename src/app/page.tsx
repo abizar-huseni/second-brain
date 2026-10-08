@@ -174,7 +174,6 @@ export default function Today() {
       {bedtime && <SleepTile />}
       <QuitCard />
 
-      <p className="eyebrow">Now</p>
       <TodayPlan />
 
       <div className="card space-y-3">
@@ -213,86 +212,118 @@ export default function Today() {
         )}
       </div>
 
-      <DevicesCard />
-
-      <p className="eyebrow">Your brain</p>
+      <DevicesCard quiet />
       <InsightsCard />
-      <FuelCard />
-      <CoachCard />
-      <ResurfaceCard />
-      <NotifyButton compact />
 
-      {(data.events.length > 0 || mail.length > 0) && (
-        <>
-          <p className="eyebrow">Coming up</p>
-          <div className="card space-y-3">
-            {data.events.map((e) => (
-              <div key={e.external_id} className="flex items-center gap-3 text-sm">
-                <span className="flex h-10 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-zinc-500/10 text-[10px] leading-tight text-zinc-500">
-                  <span className="font-semibold uppercase">{new Date(e.starts_at).toLocaleDateString("en-GB", { weekday: "short" })}</span>
-                  {!e.all_day && <span className="tabular-nums">{new Date(e.starts_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>}
-                </span>
-                <span className="truncate font-medium">{e.title}</span>
-              </div>
-            ))}
-            {mail.length > 0 && (
-              <div className="space-y-1.5 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
-                <p className="label">📬 Unread ({data.mail.length})</p>
-                {mail.map((m) => (
-                  <div key={m.external_id} className="flex gap-2 text-sm">
-                    <span>{MAIL_ICON[m.category] ?? "✉️"}</span>
-                    <span className="min-w-0 flex-1 truncate">
-                      <span className="font-medium">{m.from_name}</span> <span className="text-zinc-500">{m.subject}</span>
-                    </span>
+      <More
+        tabs={[
+          {
+            key: "brief",
+            label: "Brief",
+            icon: "🧠",
+            node: (
+              <>
+                <CoachCard />
+                <ResurfaceCard />
+                <NotifyButton compact />
+              </>
+            ),
+          },
+          { key: "fuel", label: "Fuel", icon: "⚡", node: <FuelCard /> },
+          {
+            key: "pulse",
+            label: "Pulse",
+            icon: "📈",
+            node: (
+              <>
+                {!bedtime && <SleepTile />}
+                <div className="card space-y-4">
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <Mini icon={faceFor(MOOD, lastMood?.value)?.emoji ?? "🙂"} value={faceFor(MOOD, lastMood?.value)?.label ?? "–"} label="Mood" />
+                    <Mini icon="😴" value={sleep ? `${Math.floor(sleep / 60)}h${String(sleep % 60).padStart(2, "0")}` : "–"} label="Sleep" href="/health" />
+                    <Mini icon="👟" value={data.health?.steps ? `${(data.health.steps / 1000).toFixed(1)}k` : "–"} label="Steps" href="/health" />
+                    <Mini icon="💼" value={`${hoursWeek.toFixed(hoursWeek % 1 ? 1 : 0)}h`} label="Worked 7d" />
                   </div>
-                ))}
+                  <div>
+                    <p className="label">Mood, last 14 days</p>
+                    <div className="flex h-20 items-end gap-1">
+                      {mood.map((m, i) => (
+                        <div
+                          key={m.day}
+                          title={`${m.day}: ${m.value ? faceFor(MOOD, m.value)?.label : "no check-in"}`}
+                          className={`grow-bar flex-1 rounded-full ${m.value ? moodColor(m.value) : "bg-zinc-500/15"}`}
+                          style={{ height: `${m.value ? m.value * 10 : 6}%`, animationDelay: `${i * 30}ms` }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {data.health && <p className="text-center text-[11px] text-zinc-500">Watch data from {data.health.day === today ? "today" : data.health.day}</p>}
+                </div>
+              </>
+            ),
+          },
+          ...(data.events.length > 0 || mail.length > 0
+            ? [
+                {
+                  key: "next",
+                  label: "Coming up",
+                  icon: "📅",
+                  node: (
+                    <div className="card space-y-3">
+                      {data.events.map((e) => (
+                        <div key={e.external_id} className="flex items-center gap-3 text-sm">
+                          <span className="flex h-10 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-zinc-500/10 text-[10px] leading-tight text-zinc-500">
+                            <span className="font-semibold uppercase">{new Date(e.starts_at).toLocaleDateString("en-GB", { weekday: "short" })}</span>
+                            {!e.all_day && <span className="tabular-nums">{new Date(e.starts_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>}
+                          </span>
+                          <span className="truncate font-medium">{e.title}</span>
+                        </div>
+                      ))}
+                      {mail.length > 0 && (
+                        <div className="space-y-1.5 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
+                          <p className="label">📬 Unread ({data.mail.length})</p>
+                          {mail.map((m) => (
+                            <div key={m.external_id} className="flex gap-2 text-sm">
+                              <span>{MAIL_ICON[m.category] ?? "✉️"}</span>
+                              <span className="min-w-0 flex-1 truncate">
+                                <span className="font-medium">{m.from_name}</span> <span className="text-zinc-500">{m.subject}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ),
+                },
+              ]
+            : []),
+          {
+            key: "goals",
+            label: "Goals",
+            icon: "🏔️",
+            node: (
+              <div className="card space-y-3">
+                {big.length === 0 && <Link href="/goals" className="text-sm text-zinc-500">Set your first goal →</Link>}
+                {big.map((g) => {
+                  const [d, max] = goalProgress(g, data.goals.filter((s) => s.parent_id === g.id));
+                  return (
+                    <div key={g.id}>
+                      <p className="mb-1 text-sm font-medium">{g.title}</p>
+                      <Progress value={d} max={max} />
+                    </div>
+                  );
+                })}
+                {big.length > 0 && (
+                  <Link href="/goals" className="block text-right text-xs text-zinc-500">
+                    All goals →
+                  </Link>
+                )}
               </div>
-            )}
-          </div>
-        </>
-      )}
-
-      <p className="eyebrow">Pulse</p>
-      {!bedtime && <SleepTile />}
-      <div className="card space-y-4">
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <Mini icon={faceFor(MOOD, lastMood?.value)?.emoji ?? "🙂"} value={faceFor(MOOD, lastMood?.value)?.label ?? "–"} label="Mood" />
-          <Mini icon="😴" value={sleep ? `${Math.floor(sleep / 60)}h${String(sleep % 60).padStart(2, "0")}` : "–"} label="Sleep" href="/health" />
-          <Mini icon="👟" value={data.health?.steps ? `${(data.health.steps / 1000).toFixed(1)}k` : "–"} label="Steps" href="/health" />
-          <Mini icon="💼" value={`${hoursWeek.toFixed(hoursWeek % 1 ? 1 : 0)}h`} label="Worked 7d" />
-        </div>
-        <div>
-          <p className="label">Mood, last 14 days</p>
-          <div className="flex h-20 items-end gap-1">
-            {mood.map((m, i) => (
-              <div
-                key={m.day}
-                title={`${m.day}: ${m.value ? faceFor(MOOD, m.value)?.label : "no check-in"}`}
-                className={`grow-bar flex-1 rounded-full ${m.value ? moodColor(m.value) : "bg-zinc-500/15"}`}
-                style={{ height: `${m.value ? m.value * 10 : 6}%`, animationDelay: `${i * 30}ms` }}
-              />
-            ))}
-          </div>
-        </div>
-        {data.health && <p className="text-center text-[11px] text-zinc-500">Watch data from {data.health.day === today ? "today" : data.health.day}</p>}
-      </div>
-
-      <div className="card space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="label mb-0">🏔️ Goals</p>
-          <Link href="/goals" className="text-xs text-zinc-500">All →</Link>
-        </div>
-        {big.length === 0 && <Link href="/goals" className="text-sm text-zinc-500">Set your first goal →</Link>}
-        {big.map((g) => {
-          const [d, max] = goalProgress(g, data.goals.filter((s) => s.parent_id === g.id));
-          return (
-            <div key={g.id}>
-              <p className="mb-1 text-sm font-medium">{g.title}</p>
-              <Progress value={d} max={max} />
-            </div>
-          );
-        })}
-      </div>
+            ),
+          },
+        ]}
+        fallback={hour < 12 ? "brief" : bedtime ? "pulse" : "fuel"}
+      />
     </div>
   );
 }
@@ -303,6 +334,48 @@ const SKY = {
   dusk: "from-indigo-500 via-violet-600 to-fuchsia-600 shadow-violet-500/25",
   night: "from-slate-900 via-indigo-950 to-violet-950 shadow-indigo-950/30",
 };
+
+// Everything that isn't "now" lives behind one row of chips, one panel at a time.
+// Remembers your last pick for the day; otherwise opens what suits the hour.
+type Panel = { key: string; label: string; icon: string; node: React.ReactNode };
+function More({ tabs, fallback }: { tabs: Panel[]; fallback: string }) {
+  const store = `today-more:${toDay()}`;
+  const [pick, setPick] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      setPick(localStorage.getItem(store));
+    } catch {}
+  }, [store]);
+  const active = tabs.find((t) => t.key === pick) ?? tabs.find((t) => t.key === fallback) ?? tabs[0];
+  return (
+    <section className="space-y-3 pt-2">
+      <div className="no-scrollbar fade-right -mx-4 flex gap-1.5 overflow-x-auto px-4">
+        {tabs.map((t) => {
+          const on = t.key === active.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => {
+                setPick(t.key);
+                try {
+                  localStorage.setItem(store, t.key);
+                } catch {}
+              }}
+              aria-pressed={on}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition active:scale-95 ${on ? "bg-[var(--fg)] font-medium text-[var(--bg)] shadow-sm" : "bg-[var(--card)] text-zinc-500 ring-1 ring-[var(--line)]"}`}
+            >
+              <span className={on ? "" : "grayscale"}>{t.icon}</span>
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+      <div key={active.key} className="stagger space-y-4">
+        {active.node}
+      </div>
+    </section>
+  );
+}
 
 // Day score: both check-ins plus every good habit.
 function dayScore(d: Data) {

@@ -7,6 +7,7 @@ import { addDays, weekStart } from "@/lib/ldates";
 import { gbp } from "@/lib/money";
 import { callApi, errorText } from "@/lib/api";
 import { useAssistantName } from "@/lib/useAssistant";
+import { useSubTabs } from "@/lib/subtabs";
 import type { DayPlan, MoneyPlan, PlanKind, WeekPlan, YearPlan } from "@/lib/plan";
 
 type Task = { id: string; title: string; day: string | null; must: boolean; done: boolean; source: string };
@@ -18,7 +19,7 @@ const TABS = [
   { key: "tomorrow", label: "Tomorrow" },
   { key: "week", label: "Week" },
   { key: "year", label: "Year" },
-  { key: "money", label: "Money" },
+  { key: "money", label: "Budget" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
 
@@ -86,20 +87,13 @@ export default function PlanPage() {
     return ok;
   }
 
+  useSubTabs(TABS, tab, setTab);
   const dayTab = tab === "today" || tab === "tomorrow";
   const day = tab === "tomorrow" ? tomorrow : today;
   const shownPlan = dayTab ? planFor("day", day) : planFor(tab, periodFor[tab]) ?? planFor(tab);
 
   return (
     <div className="rise space-y-4">
-      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-zinc-100 p-1 dark:bg-zinc-900">
-        {TABS.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`flex-1 rounded-xl px-3 py-1.5 text-sm transition ${tab === t.key ? "bg-white font-semibold shadow-sm dark:bg-zinc-800" : "text-zinc-500"}`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       {/* load() already leaves out old done tasks, so a tick here stays on screen until the next load. */}
       {dayTab && (
         <TaskList

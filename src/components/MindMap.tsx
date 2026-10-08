@@ -40,13 +40,13 @@ export default function MindMap({
         const dots = Math.min(count, 8);
         return (
           <g key={tag} className="cursor-pointer" onClick={() => onSelect(active ? null : tag)}>
-            <line x1={C.x} y1={C.y} x2={x} y2={y} className="stroke-zinc-300 dark:stroke-zinc-700" strokeWidth={1 + (count / max) * 3} />
+            <line x1={C.x} y1={C.y} x2={x} y2={y} className="stroke-zinc-500/30" strokeWidth={1 + (count / max) * 3} />
             {Array.from({ length: dots }, (_, d) => {
               const a = angle + ((d - (dots - 1) / 2) * 0.35);
               return <circle key={d} cx={x + Math.cos(a) * (r + 12)} cy={y + Math.sin(a) * (r + 12)} r={3} className="fill-emerald-400/60" />;
             })}
-            <circle cx={x} cy={y} r={r} className={active ? "fill-emerald-500" : "fill-zinc-200 dark:fill-zinc-800"} />
-            <text x={x} y={y - 2} textAnchor="middle" className={`text-[10px] font-medium ${active ? "fill-white" : "fill-zinc-700 dark:fill-zinc-200"}`}>
+            <circle cx={x} cy={y} r={r} className={`transition-colors ${active ? "fill-[var(--accent)]" : "fill-zinc-500/15"}`} />
+            <text x={x} y={y - 2} textAnchor="middle" className={`text-[10px] font-medium ${active ? "fill-white" : "fill-[var(--fg)]"}`}>
               {tag.length > 10 ? tag.slice(0, 9) + "…" : tag}
             </text>
             <text x={x} y={y + 10} textAnchor="middle" className={`text-[9px] ${active ? "fill-white" : "fill-zinc-500"}`}>{count}</text>
@@ -54,8 +54,8 @@ export default function MindMap({
         );
       })}
       <g className="cursor-pointer" onClick={() => onSelect(null)}>
-        <circle cx={C.x} cy={C.y} r={30} className="fill-zinc-900 dark:fill-white" />
-        <text x={C.x} y={C.y + 4} textAnchor="middle" className="fill-white text-xs font-semibold dark:fill-zinc-900">Me</text>
+        <circle cx={C.x} cy={C.y} r={30} className="fill-[var(--fg)]" />
+        <text x={C.x} y={C.y + 4} textAnchor="middle" className="fill-[var(--bg)] text-xs font-semibold">Me</text>
       </g>
     </svg>
   );
