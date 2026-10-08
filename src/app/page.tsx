@@ -7,21 +7,23 @@ import { daysAgo, toDay } from "@/lib/dates";
 import { goalProgress } from "@/lib/goals";
 import Progress from "@/components/Progress";
 import type { Checkin, Goal, Habit, HabitLog } from "@/lib/types";
+import type { HealthDay } from "@/lib/samsung";
 
-type Data = { goals: Goal[]; habits: Habit[]; logs: HabitLog[]; checkins: Checkin[] };
+type Data = { goals: Goal[]; habits: Habit[]; logs: HabitLog[]; checkins: Checkin[]; health: HealthDay | null };
 
 export default function Today() {
   const [data, setData] = useState<Data | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [g, h, l, c] = await Promise.all([
+      const [g, h, l, c, hd] = await Promise.all([
         supabase.from("goals").select("*"),
         supabase.from("habits").select("*").eq("archived", false),
         supabase.from("habit_logs").select("habit_id, day").eq("day", toDay()),
         supabase.from("checkins").select("*").gte("day", daysAgo(13)).order("day"),
+        supabase.from("health_days").select("*").order("day", { ascending: false }).limit(1),
       ]);
-      setData({ goals: g.data ?? [], habits: h.data ?? [], logs: l.data ?? [], checkins: c.data ?? [] });
+      setData({ goals: g.data ?? [], habits: h.data ?? [], logs: l.data ?? [], checkins: c.data ?? [], health: hd.data?.[0] ?? null });
     })();
   }, []);
 
@@ -67,6 +69,14 @@ export default function Today() {
         <Stat label="Slips" value={String(slips)} />
         <Stat label="Hours (7d)" value={hoursWeek.toFixed(1)} />
       </div>
+
+      {data.health && (
+        <Link href="/health" className="grid grid-cols-3 gap-3">
+          <Stat label={`Steps (${data.health.day.slice(5)})`} value={data.health.steps?.toLocaleString("en-GB") ?? "–"} />
+          <Stat label="Sleep" value={data.health.sleep_min ? `${Math.floor(data.health.sleep_min / 60)}h ${data.health.sleep_min % 60}m` : "–"} />
+          <Stat label="Stress" value={data.health.stress_avg?.toString() ?? "–"} />
+        </Link>
+      )}
 
       <div className="card">
         <p className="label">Mood, last 14 days</p>

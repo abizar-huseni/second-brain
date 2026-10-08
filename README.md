@@ -17,6 +17,7 @@ Built in public by [@abizar-huseni](https://github.com/abizar-huseni) while lear
 
 - **Notes**: dump thoughts in one tap, group them with #tags, search them
 - **Mind map**: every #tag becomes a branch around you, sized by how often you think about it
+- **Health**: import your Samsung Health export (Galaxy Watch) and see steps, sleep, exercise, stress and heart rate over 7/30/90 days
 - **Money**: monthly in/out with category breakdown, UK payslips (tax, NI, pension, student loan, £/hour), and a debt tracker with payoff progress and monthly interest cost
 
 ## Stack
@@ -31,7 +32,7 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 
 ## Setup
 
-1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`.
+1. **Supabase**: create a free project at [supabase.com](https://supabase.com). Open SQL Editor and run `supabase/schema.sql`, then `supabase/002_notes_money.sql`, then `supabase/003_health.sql`.
 2. **Keys**: copy `.env.example` to `.env.local` and paste your Project URL and anon key from Project Settings > API. Never commit `.env.local`.
 3. **Run locally**:
    ```bash
@@ -47,7 +48,8 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 
 - [x] **v1**: goals, habits, check-ins, dashboard
 - [x] **v2 part 1**: notes + mind map, money (expenses, payslips, debt tracker)
-- [ ] **v2 part 2**: Samsung Health CSV import, Google Keep import (Takeout), payslip PDF upload
+- [x] **v2 part 2a**: Samsung Health CSV import + Health page
+- [ ] **v2 part 2b**: Google Keep import (Takeout), payslip PDF upload
 - [ ] **v3**: live Galaxy Watch data via Health Connect, UK Open Banking for Lloyds + HSBC, Gmail summary, AI coach
 - [ ] **v4**: weekly review, correlations (sleep vs mood vs productivity) in Python
 
@@ -57,3 +59,4 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 |---|---|
 | 2026-10-08 | v1 scaffold: goals, habits, check-ins, dashboard, PWA |
 | 2026-10-08 | Deployed on Vercel + Supabase. v2 part 1: notes, mind map, money |
+| 2026-10-08 | Samsung Health import: 545 days of watch data in one click |
