@@ -7,6 +7,7 @@ import { callApi, errorText } from "@/lib/api";
 import { useAssistantName } from "@/lib/useAssistant";
 import { timeAgo } from "@/lib/time";
 import type { Insight } from "@/lib/think";
+import Cited from "./Cited";
 
 const KIND: Record<string, { icon: string; tint: string }> = {
   deadline: { icon: "⏰", tint: "border-l-rose-500" },
@@ -81,10 +82,10 @@ export default function InsightsCard() {
                 <span className="text-lg">{k.icon}</span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">
-                    {i.title}
+                    <Cited text={i.title} />
                     {i.priority === 1 && <span className="ml-2 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">TODAY</span>}
                   </p>
-                  <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">{i.body}</p>
+                  <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300"><Cited text={i.body} /></p>
                   {!!i.sources?.length && (
                     <p className="mt-1 flex flex-wrap gap-x-2 text-xs">
                       {i.sources.map((s, n) => {

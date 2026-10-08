@@ -18,6 +18,8 @@ import type { Checkin, Goal, Habit, HabitLog } from "@/lib/types";
 import type { HealthDay } from "@/lib/samsung";
 import { timeAgo } from "@/lib/time";
 import { skyFor } from "@/lib/feel";
+import FuelCard from "@/components/FuelCard";
+import { SleepTile } from "@/components/SleepPanel";
 
 type Mail = { external_id: string; from_name: string; subject: string; category: string; unread: boolean; received_at: string };
 type CalEvent = { external_id: string; title: string; starts_at: string; all_day: boolean; location: string | null };
@@ -166,6 +168,7 @@ export default function Today() {
       </section>
 
       <QuitCard />
+      <SleepTile />
 
       <p className="eyebrow">Now</p>
       <TodayPlan />
@@ -209,6 +212,7 @@ export default function Today() {
       <p className="eyebrow">Your brain</p>
       <InsightsCard />
       <CoachCard />
+      <FuelCard />
       <ResurfaceCard />
       <NotifyButton compact />
 

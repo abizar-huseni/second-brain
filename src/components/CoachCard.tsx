@@ -6,6 +6,7 @@ import { toDay } from "@/lib/dates";
 import type { Brief } from "@/lib/coach";
 import { callApi, NOT_CONFIGURED } from "@/lib/api";
 import { useAssistantName } from "@/lib/useAssistant";
+import Cited from "./Cited";
 
 const AREA_ICON: Record<string, string> = { growth: "🌱", fitness: "💪", mind: "🧠", money: "💷", work: "💼" };
 
@@ -83,18 +84,18 @@ export default function CoachCard() {
 
       {brief && (
         <div key={brief.headline} className="stagger space-y-2">
-          <p className="text-lg font-semibold leading-snug">{brief.headline}</p>
+          <p className="text-lg font-semibold leading-snug"><Cited text={brief.headline} /></p>
           {brief.focus.map((f, i) => (
             <div key={i} className="flex gap-3 rounded-xl bg-white/70 p-3 dark:bg-zinc-800/60">
               <span className="text-xl">{AREA_ICON[f.area ?? ""] ?? "👉"}</span>
               <div>
-                <p className="text-sm font-medium">{f.title}</p>
-                <p className="text-xs text-zinc-500">{f.why}</p>
+                <p className="text-sm font-medium"><Cited text={f.title} /></p>
+                <p className="text-xs text-zinc-500"><Cited text={f.why} /></p>
               </div>
             </div>
           ))}
-          {brief.win && <p className="text-sm">🏆 {brief.win}</p>}
-          {brief.watch_out && <p className="text-sm">⚠️ {brief.watch_out}</p>}
+          {brief.win && <p className="text-sm">🏆 <Cited text={brief.win} /></p>}
+          {brief.watch_out && <p className="text-sm">⚠️ <Cited text={brief.watch_out} /></p>}
         </div>
       )}
 

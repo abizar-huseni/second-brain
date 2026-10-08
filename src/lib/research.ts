@@ -4,11 +4,13 @@ export type Finding = { title: string; url: string; content: string };
 
 export const researchConfigured = () => Boolean(process.env.TAVILY_API_KEY);
 
-export async function search(query: string): Promise<Finding[]> {
+// Queries are written by the assistant from your situation; they never include names, emails or account numbers.
+export async function search(query: string, opts: { domains?: string[]; max?: number } = {}): Promise<Finding[]> {
   const res = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${process.env.TAVILY_API_KEY}` },
-    body: JSON.stringify({ query, search_depth: "basic", max_results: 4 }),
+    body: JSON.stringify({ query: query.slice(0, 300), search_depth: "basic", max_results: opts.max ?? 4, ...(opts.domains ? { include_domains: opts.domains } : {}) }),
+    signal: AbortSignal.timeout(12_000),
   });
   if (!res.ok) return [];
   const json = (await res.json()) as { results?: Finding[] };

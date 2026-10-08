@@ -2,6 +2,7 @@
 // so there is nothing to set up in Vercel.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import webpush from "web-push";
+import { stripCitations } from "./nhs";
 
 const SUBJECT = "https://github.com/abizar-huseni/second-brain";
 
@@ -26,7 +27,7 @@ export async function sendPush(db: SupabaseClient, userId: string, msg: { title:
   let sent = 0;
   for (const s of subs) {
     try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, JSON.stringify({ ...msg, url: msg.url ?? "/" }), { TTL: 6 * 3600 });
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, JSON.stringify({ title: stripCitations(msg.title), body: stripCitations(msg.body), url: msg.url ?? "/" }), { TTL: 6 * 3600 });
       sent++;
     } catch (e) {
       // 404/410 = the phone unsubscribed or the browser was reset.
