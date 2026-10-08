@@ -19,7 +19,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const VERSION = "1.2.0";
+const VERSION = "1.2.1";
 const IS_WIN = process.platform === "win32";
 const IS_TERMUX = Boolean(process.env.PREFIX?.includes("com.termux")) || fs.existsSync("/data/data/com.termux");
 const KIND = IS_WIN ? "windows" : IS_TERMUX ? "android" : "other";
@@ -151,7 +151,8 @@ const str = (v, name, max = 500) => {
 const command = (v) => {
   const c = str(v, "command", 500);
   if (c.split("\n").length > 5) throw new Error("Commands can be at most 5 lines.");
-  if (/ {20,}|\t/.test(c)) throw new Error("That command has long runs of spaces or tabs. Not running it.");
+  // Only plain spaces and normal line breaks: no \r, tabs, form feeds, unicode line breaks or wide spaces.
+  if (/[\s\p{Cc}\p{Cf}\p{Z}]/u.test(c.replace(/[ \n]/g, "")) || / {20,}/.test(c)) throw new Error("That command has unusual spacing. Not running it.");
   return c;
 };
 const appName = (v) => {

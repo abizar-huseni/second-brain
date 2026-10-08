@@ -213,7 +213,7 @@ export function checkParams(action: string, params: Record<string, unknown>): { 
     }
     out[name] = v;
   }
-  if (action === "run" && (String(out.command).length > 500 || String(out.command).split("\n").length > 5)) return { ok: false, error: "Commands can be at most 500 characters and 5 lines" };
+  if (action === "run" && (String(out.command).length > 500 || String(out.command).split("\n").length > 5 || /[\s\p{Cc}\p{Cf}\p{Z}]/u.test(String(out.command).replace(/[ \n]/g, "")) || / {20,}/.test(String(out.command)))) return { ok: false, error: "Commands can be at most 500 characters and 5 lines" };
   if (action === "open_url" && !/^https?:\/\//i.test(String(out.url))) return { ok: false, error: "Links must start with http:// or https://" };
   return { ok: true, params: out };
 }
