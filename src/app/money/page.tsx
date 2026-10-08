@@ -5,10 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { toDay } from "@/lib/dates";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, gbp } from "@/lib/money";
 import { parseStatement } from "@/lib/statements";
+import { api, syncConnection, type BankConnection } from "@/lib/bankClient";
 import Progress from "@/components/Progress";
 import type { Debt, Payslip, Transaction } from "@/lib/types";
 
-type Tab = "month" | "payslips" | "debts";
+type Tab = "month" | "banks" | "payslips" | "debts";
 
 export default function MoneyPage() {
   const [tab, setTab] = useState<Tab>("month");
@@ -34,13 +35,14 @@ export default function MoneyPage() {
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        {(["month", "payslips", "debts"] as const).map((t) => (
+        {(["month", "banks", "payslips", "debts"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg py-2 text-sm capitalize ${tab === t ? "btn" : "border border-zinc-300 dark:border-zinc-700"}`}>
             {t === "month" ? "This month" : t}
           </button>
         ))}
       </div>
       {tab === "month" && <Month tx={tx} reload={load} />}
+      {tab === "banks" && <Banks reload={load} />}
       {tab === "payslips" && <Payslips slips={slips} reload={load} />}
       {tab === "debts" && <Debts debts={debts} reload={load} />}
     </div>
@@ -152,6 +154,128 @@ function Month({ tx, reload }: { tx: Transaction[]; reload: () => void }) {
         ))}
         {!tx.length && <li className="py-2 text-center text-sm text-zinc-500">Nothing logged yet.</li>}
       </ul>
+    </>
+  );
+}
+
+function Banks({ reload }: { reload: () => void }) {
+  const [connections, setConnections] = useState<BankConnection[]>([]);
+  const [banks, setBanks] = useState<{ name: string; logo?: string }[] | null>(null);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+
+  const load = useCallback(async () => {
+    const { data } = await supabase.from("bank_connections").select("*").order("created_at");
+    setConnections(data ?? []);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function showBanks() {
+    setStatus("Loading banks…");
+    try {
+      setBanks(await api("/api/bank/aspsps"));
+      setStatus("");
+    } catch (e) {
+      setStatus((e as Error).message);
+    }
+  }
+
+  async function connect(bank: string) {
+    const state = crypto.randomUUID();
+    sessionStorage.setItem("bank_state", state);
+    setStatus(`Opening ${bank}…`);
+    try {
+      const { url } = await api<{ url: string }>("/api/bank/start", { bank, state });
+      window.location.href = url;
+    } catch (e) {
+      setStatus((e as Error).message);
+    }
+  }
+
+  async function sync(c: BankConnection) {
+    setStatus(`Syncing ${c.bank}…`);
+    try {
+      const added = await syncConnection(c);
+      setStatus(`${c.bank}: ${added} new transactions.`);
+      load();
+      reload();
+    } catch (e) {
+      setStatus(`${(e as Error).message} If your access expired, remove this bank and connect it again.`);
+    }
+  }
+
+  async function remove(c: BankConnection) {
+    if (!confirm(`Disconnect ${c.bank}? Imported transactions stay.`)) return;
+    await supabase.from("bank_connections").delete().eq("id", c.id);
+    load();
+  }
+
+  const total = connections.flatMap((c) => c.accounts).reduce((s, a) => s + (a.balance ?? 0), 0);
+  const shown = (banks ?? []).filter((b) => b.name.toLowerCase().includes(search.toLowerCase())).slice(0, 12);
+
+  return (
+    <>
+      {connections.length > 0 && (
+        <div className="card flex items-baseline justify-between">
+          <p className="label mb-0">Across your banks</p>
+          <p className="text-2xl font-semibold tabular-nums">{gbp(total)}</p>
+        </div>
+      )}
+
+      {connections.map((c) => {
+        const expires = c.valid_until ? Math.ceil((Date.parse(c.valid_until) - Date.now()) / 86400000) : null;
+        return (
+          <div key={c.id} className="card space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">{c.bank}</span>
+              <button onClick={() => remove(c)} className="text-xs text-zinc-400">✕</button>
+            </div>
+            {c.accounts.map((a) => (
+              <div key={a.uid} className="flex justify-between text-sm">
+                <span>{a.name}{a.last4 && <span className="text-zinc-500"> ••{a.last4}</span>}</span>
+                <span className="tabular-nums">{a.balance === undefined || a.balance === null ? "–" : gbp(a.balance)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between text-xs text-zinc-500">
+              <span>
+                {c.last_synced ? `Synced ${new Date(c.last_synced).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}` : "Not synced yet"}
+                {expires !== null && ` · access ${expires > 0 ? `ends in ${expires} days` : "expired"}`}
+              </span>
+              <button className="btn py-1" onClick={() => sync(c)}>Sync now</button>
+            </div>
+          </div>
+        );
+      })}
+
+      <div className="card space-y-2">
+        <p className="label">Connect a bank (live sync)</p>
+        {banks === null ? (
+          <button className="btn w-full" onClick={showBanks}>+ Connect a bank</button>
+        ) : (
+          <>
+            <input className="input" placeholder="Search, e.g. Lloyds or HSBC" value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
+            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {shown.map((b) => (
+                <li key={b.name}>
+                  <button onClick={() => connect(b.name)} className="flex w-full items-center gap-3 py-2 text-left text-sm">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {b.logo && <img src={b.logo} alt="" className="h-6 w-6 rounded object-contain" />}
+                    {b.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <p className="text-xs text-zinc-500">
+          You log in on your bank&apos;s own page. This app never sees your bank password, only read-only transactions and balances.
+          UK banks ask you to re-approve every 90 days.
+        </p>
+      </div>
+      {status && <p className="text-sm text-zinc-500">{status}</p>}
     </>
   );
 }
