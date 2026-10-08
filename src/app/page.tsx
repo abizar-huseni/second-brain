@@ -21,6 +21,7 @@ import { timeAgo } from "@/lib/time";
 import { skyFor } from "@/lib/feel";
 import FuelCard from "@/components/FuelCard";
 import DeadlineCountdown from "@/components/DeadlineCountdown";
+import SetupCard from "@/components/SetupCard";
 import { SleepTile } from "@/components/SleepPanel";
 
 type Mail = { external_id: string; from_name: string; subject: string; category: string; unread: boolean; received_at: string };
@@ -89,6 +90,7 @@ export default function Today() {
   // Before 4am, last night's check-in still counts as tonight's.
   const night = data.checkins.find((c) => c.day === checkinDay("night") && c.kind === "night");
   const good = data.habits.filter((h) => h.kind === "good");
+  const bad = data.habits.filter((h) => h.kind === "bad");
   const done = (h: Habit) => data.logs.some((l) => l.habit_id === h.id);
   const goodDone = good.filter(done).length;
   const slips = data.habits.filter((h) => h.kind === "bad" && done(h)).length;
@@ -172,6 +174,7 @@ export default function Today() {
       </section>
 
       <DeadlineCountdown />
+      <SetupCard />
 
       {/* Evenings, sleep moves to the top: it's what matters next. */}
       {bedtime && <SleepTile />}
@@ -206,7 +209,27 @@ export default function Today() {
             })}
           </div>
         )}
-        {slips > 0 && <p className="text-xs text-rose-500">{slips} slip{slips > 1 ? "s" : ""} logged today. Reset, go again.</p>}
+        {bad.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--line)] pt-3">
+            <span className="mr-1 text-xs text-zinc-500">Slipped?</span>
+            {bad.map((h) => {
+              const on = done(h);
+              return (
+                <button
+                  key={h.id}
+                  onClick={() => toggle(h)}
+                  aria-pressed={on}
+                  aria-label={on ? `Undo slip: ${h.name}` : `Log a slip: ${h.name}`}
+                  className={`chip flex items-center gap-1 py-1 text-xs ${on ? "border-transparent bg-rose-500 font-medium text-white" : "text-zinc-500"}`}
+                >
+                  <span key={String(on)} className={on ? "pop inline-block" : "inline-block"}>{on ? "✕" : "＋"}</span>
+                  {h.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {slips > 0 && <p className="text-xs text-rose-500">{slips} slip{slips > 1 ? "s" : ""} logged today. No drama: reset and go again.</p>}
         {morning?.priorities && (
           <div className="rounded-2xl bg-zinc-500/5 p-3">
             <p className="label">🎯 Your top 3</p>

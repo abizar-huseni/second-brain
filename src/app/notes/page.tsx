@@ -126,7 +126,9 @@ export default function NotesPage() {
         {!shown.length && <p className="text-center text-sm text-zinc-500">No notes here yet.</p>}
       </ul>
 
-      <KeepImport onDone={load} />
+      <div id="keep" className="scroll-mt-28">
+        <KeepImport onDone={load} />
+      </div>
     </div>
   );
 }
