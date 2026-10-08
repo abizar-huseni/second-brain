@@ -19,7 +19,7 @@ Built in public by [@abizar-huseni](https://github.com/abizar-huseni) while lear
 - **Mind map**: every #tag becomes a branch around you, sized by how often you think about it
 - **Health**: import your Samsung Health export (Galaxy Watch) and see steps, sleep, exercise, stress and heart rate over 7/30/90 days
 - **Bank statements**: drop in a Lloyds or HSBC CSV and every transaction is imported and auto-categorised (no duplicates on re-import)
-- **Live bank sync**: connect Lloyds/HSBC (or any UK bank) through Enable Banking's free personal tier; balances and transactions pull in with one tap
+- **Live bank sync** (built, switched off): code for Enable Banking is in place, but Enable Banking doesn't serve UK banks since Brexit, so the Banks tab is hidden for now
 - **Money**: monthly in/out with category breakdown, UK payslips (tax, NI, pension, student loan, £/hour), and a debt tracker with payoff progress and monthly interest cost
 
 ## Stack
@@ -46,7 +46,9 @@ Database schema: [`supabase/schema.sql`](supabase/schema.sql).
 5. **Deploy**: import this repo on [vercel.com](https://vercel.com), add the same two env variables, deploy.
 6. **Install on your phone**: open the Vercel URL in Chrome > menu > "Add to Home screen". On a laptop, click the install icon in the address bar.
 
-## Live bank sync (optional)
+## Live bank sync (EU banks only for now)
+
+Enable Banking currently doesn't cover UK banks. For EU accounts:
 
 1. Sign up at [enablebanking.com](https://enablebanking.com) and open the Control Panel.
 2. Register a **production** application. Redirect URL: `https://YOUR-APP.vercel.app/bank/callback`. Save the `.pem` private key it gives you.

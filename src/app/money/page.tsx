@@ -35,7 +35,7 @@ export default function MoneyPage() {
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        {(["month", "banks", "payslips", "debts"] as const).map((t) => (
+        {(["month", "payslips", "debts"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg py-2 text-sm capitalize ${tab === t ? "btn" : "border border-zinc-300 dark:border-zinc-700"}`}>
             {t === "month" ? "This month" : t}
           </button>
