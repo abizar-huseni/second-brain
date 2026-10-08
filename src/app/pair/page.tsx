@@ -9,5 +9,11 @@ export default function PairPage() {
     const t = setTimeout(() => location.replace("/"), 1200);
     return () => clearTimeout(t);
   }, []);
-  return <p className="py-20 text-center text-lg">✅ This device is linked. Taking you home…</p>;
+  return (
+    <div className="celebrate py-24 text-center">
+      <p className="float text-6xl">✅</p>
+      <p className="mt-4 text-xl font-semibold">This device is linked</p>
+      <p className="text-sm text-zinc-500">Taking you home…</p>
+    </div>
+  );
 }

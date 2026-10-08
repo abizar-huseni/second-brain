@@ -74,7 +74,7 @@ export default function QuitPage() {
           <button className="btn w-full py-3" onClick={start}>
             Start my quit
           </button>
-          {msg && <p className="text-sm text-amber-600">{msg}</p>}
+          {msg && <p className="notice">{msg}</p>}
         </div>
       </div>
     );

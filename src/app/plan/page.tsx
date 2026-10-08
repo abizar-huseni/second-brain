@@ -123,7 +123,7 @@ export default function PlanPage() {
             {shownPlan.kind === "money" && <MoneyView plan={shownPlan.content as MoneyPlan} />}
           </div>
         )}
-        {msg && <p className="text-sm text-amber-600">{msg}</p>}
+        {msg && <p className="notice">{msg}</p>}
       </div>
 
       {tab === "week" && <TaskList day={null} tasks={tasks.filter((t) => t.day === null && !t.done)} someday={[]} today={today} reload={load} />}

@@ -80,7 +80,7 @@ function Login() {
       <button className="btn" disabled={busy} onClick={() => submit("in")}>Sign in</button>
       <button className="text-sm text-zinc-500" disabled={busy} onClick={() => submit("up")}>Create account</button>
       {error && <p className="text-sm text-amber-600">{error}</p>}
-      <p className="pt-4 text-center text-xs text-zinc-500">Signed in on another device? Open Me → Link a device there and scan the code with this one. No password needed.</p>
+      <p className="pt-4 text-center text-xs text-zinc-500">Signed in on another device? Tap your initial (top right) → Link a device there and scan the code with this one. No password needed.</p>
     </Centered>
   );
 }
