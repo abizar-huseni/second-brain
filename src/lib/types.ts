@@ -33,3 +33,42 @@ export type Checkin = {
   journal: string | null;
   hours_worked: number | null;
 };
+
+export type Note = {
+  id: string;
+  body: string;
+  tags: string[];
+  pinned: boolean;
+  created_at: string;
+};
+
+export type Transaction = {
+  id: string;
+  day: string;
+  kind: "income" | "expense";
+  amount: number;
+  category: string;
+  note: string | null;
+};
+
+export type Payslip = {
+  id: string;
+  pay_date: string;
+  employer: string | null;
+  hours: number | null;
+  gross: number;
+  tax: number;
+  ni: number;
+  pension: number;
+  student_loan: number;
+  net: number;
+};
+
+export type Debt = {
+  id: string;
+  name: string;
+  start_balance: number;
+  balance: number;
+  apr: number | null;
+  min_payment: number | null;
+};
