@@ -175,7 +175,8 @@ begin
       coalesce(array(select jsonb_array_elements_text(x->'tags')), '{}'),
       left(x->>'title', 200),
       coalesce((x->>'created_at')::timestamptz, now()),
-      left(coalesce(x->>'source', 'obsidian'), 30),
+      -- Device notes are always marked, and can never pass as typed in the app.
+      case when x->>'source' = 'clipboard' then 'clipboard' else 'obsidian' end,
       left(x->>'external_id', 500),
       p_bulk
     )
